@@ -69,8 +69,12 @@ def main():
     parser = argparse.ArgumentParser(description="Generate text using Gemini API")
     parser.add_argument(
         "prompt",
-        nargs="?",
-        help='The prompt to send to Gemini (default: "What is the capital of France?")',
+        help="The JQ command request to send to Gemini",
+    )
+    parser.add_argument(
+        "--exe",
+        action="store_true",
+        help="Execute the generated JQ command",
     )
     args = parser.parse_args()
 
@@ -88,12 +92,23 @@ def main():
     )
 
     try:
-        # Generate text
+        # Replace {{user_request}} in the prompt template
+        prompt = JQ_PROMPT.replace("{{user_request}}", args.prompt)
+        
+        # Generate JQ command
         response = client.models.generate_content(
-            model="gemini-2.0-flash-001", contents=args.prompt
+            model="gemini-2.0-flash-001", contents=prompt
         )
-        print("\nResponse:", response.text)
+        jq_command = response.text.strip()
+        print("\nGenerated JQ command:", jq_command)
 
+        # Execute the command if --exe flag is present
+        if args.exe:
+            print("\nExecuting command...")
+            # Split the command into parts and use os.execvp
+            cmd_parts = jq_command.split()
+            os.execvp(cmd_parts[0], cmd_parts)
+            
     except Exception as e:
         print(f"\nError occurred: {str(e)}")
         sys.exit(1)

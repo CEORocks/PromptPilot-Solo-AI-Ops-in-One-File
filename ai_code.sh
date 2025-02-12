@@ -1,1 +1,1 @@
-aider --sonnet --no-detect-urls --no-auto-commit *.py "$1"
+aider --sonnet --no-detect-urls --no-auto-commit --file *.py --message "$1"
