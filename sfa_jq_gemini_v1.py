@@ -7,6 +7,7 @@
 import os
 import sys
 import argparse
+import subprocess
 from google import genai
 
 JQ_PROMPT = """<purpose>
@@ -20,6 +21,7 @@ JQ_PROMPT = """<purpose>
     <instruction>Ensure the command follows jq best practices for efficiency and readability.</instruction>
     <instruction>Use the examples to understand different types of jq command patterns.</instruction>
     <instruction>When user asks to pipe or output to a file, use the correct syntax for the command and create a file name (if not specified) based on a shorted version of the user-request and the input file name.</instruction>
+    <instruction>Output your response by itself, do not use backticks or markdown formatting. We're going to run your response as a shell command immediately.</instruction>
 </instructions>
 
 <examples>
@@ -54,6 +56,14 @@ JQ_PROMPT = """<purpose>
         <jq-command>
             jq -r '.[] | [.timestamp, .level, .message] | @csv' log.json
         </jq-command>
+        <example>
+            <user-request>
+                Sort records in people.json by age in descending order
+            </user-request>
+            <jq-command>
+                jq 'sort_by(.age) | reverse' people.json
+            </jq-command>
+        </example>
     </example>
 </examples>
 
@@ -94,7 +104,7 @@ def main():
     try:
         # Replace {{user_request}} in the prompt template
         prompt = JQ_PROMPT.replace("{{user_request}}", args.prompt)
-        
+
         # Generate JQ command
         response = client.models.generate_content(
             model="gemini-2.0-flash-001", contents=prompt
@@ -105,10 +115,13 @@ def main():
         # Execute the command if --exe flag is present
         if args.exe:
             print("\nExecuting command...")
-            # Split the command into parts and use os.execvp
-            cmd_parts = jq_command.split()
-            os.execvp(cmd_parts[0], cmd_parts)
-            
+            # Execute the command using subprocess
+            result = subprocess.run(jq_command, shell=True, text=True, capture_output=True)
+            if result.returncode != 0:
+                print("\nError executing command:", result.stderr)
+                sys.exit(1)
+            print(result.stdout)
+
     except Exception as e:
         print(f"\nError occurred: {str(e)}")
         sys.exit(1)
