@@ -21,6 +21,7 @@ JQ_PROMPT = """<purpose>
     <instruction>Ensure the command follows jq best practices for efficiency and readability.</instruction>
     <instruction>Use the examples to understand different types of jq command patterns.</instruction>
     <instruction>When user asks to pipe or output to a file, use the correct syntax for the command and create a file name (if not specified) based on a shorted version of the user-request and the input file name.</instruction>
+    <instruction>If the user request asks to pipe or output to a file, and no explicit directory is specified, use the directory of the input file.</instruction>
     <instruction>Output your response by itself, do not use backticks or markdown formatting. We're going to run your response as a shell command immediately.</instruction>
 </instructions>
 
@@ -92,7 +93,7 @@ def main():
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
     if not GEMINI_API_KEY:
         print("Error: GEMINI_API_KEY environment variable is not set")
-        print("Please get your API key from https://makersuite.google.com/app/apikey")
+        print("Please get your API key from https://aistudio.google.com/app/apikey")
         print("Then set it with: export GEMINI_API_KEY='your-api-key-here'")
         sys.exit(1)
 
@@ -110,17 +111,22 @@ def main():
             model="gemini-2.0-flash-001", contents=prompt
         )
         jq_command = response.text.strip()
-        print("\nGenerated JQ command:", jq_command)
+        print("\n🤖 Generated JQ command:", jq_command)
 
         # Execute the command if --exe flag is present
         if args.exe:
-            print("\nExecuting command...")
+            print("\n🔍 Executing command...")
             # Execute the command using subprocess
-            result = subprocess.run(jq_command, shell=True, text=True, capture_output=True)
+            result = subprocess.run(
+                jq_command, shell=True, text=True, capture_output=True
+            )
             if result.returncode != 0:
-                print("\nError executing command:", result.stderr)
+                print("\n❌ Error executing command:", result.stderr)
                 sys.exit(1)
-            print(result.stdout)
+            print(result.stdout + result.stderr)
+
+            if not result.stderr:
+                print("\n✅ Command executed successfully")
 
     except Exception as e:
         print(f"\nError occurred: {str(e)}")
