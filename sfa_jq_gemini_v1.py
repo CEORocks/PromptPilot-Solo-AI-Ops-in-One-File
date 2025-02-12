@@ -19,16 +19,16 @@ def main():
 
     try:
         # Initialize the client
-        genai.configure(api_key=GOOGLE_API_KEY)
-
-        # Create a model instance
-        model = genai.GenerativeModel('gemini-1.0-pro')
+        client = genai.Client(api_key=GOOGLE_API_KEY)
 
         # Generate text
         prompt = "What is the capital of France?"
         print(f"\nPrompt: {prompt}")
         
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model='gemini-1.0-pro',
+            contents=prompt
+        )
         print("\nResponse:", response.text)
 
     except Exception as e:
