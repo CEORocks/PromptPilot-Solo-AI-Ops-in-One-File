@@ -4,6 +4,18 @@
 # ]
 # ///
 
+"""
+/// Example Usage
+
+# generates jq command and executes it
+uv run sfa_jq_gemini_v1.py --exe "Filter scores above 80 from data/mock.json and save to high_scores.json"
+
+# generates jq command only
+uv run sfa_jq_gemini_v1.py "Filter scores above 80 from data/mock.json and save to high_scores.json"
+
+///
+"""
+
 import os
 import sys
 import argparse
@@ -23,6 +35,7 @@ JQ_PROMPT = """<purpose>
     <instruction>When user asks to pipe or output to a file, use the correct syntax for the command and create a file name (if not specified) based on a shorted version of the user-request and the input file name.</instruction>
     <instruction>If the user request asks to pipe or output to a file, and no explicit directory is specified, use the directory of the input file.</instruction>
     <instruction>Output your response by itself, do not use backticks or markdown formatting. We're going to run your response as a shell command immediately.</instruction>
+    <instruction>If your results you're working with a list of objects, default to outputting a valid json array.</instruction>
 </instructions>
 
 <examples>
@@ -31,7 +44,7 @@ JQ_PROMPT = """<purpose>
             Select the "name" and "age" fields from data.json where age > 30
         </user-request>
         <jq-command>
-            jq '.[] | select(.age > 30) | {name, age}' data.json
+            jq '[.[] | select(.age > 30) | {name, age}]' data.json
         </jq-command>
     </example>
     <example>
@@ -47,30 +60,31 @@ JQ_PROMPT = """<purpose>
             Extract nested phone numbers from contacts.json using compact output
         </user-request>
         <jq-command>
-            jq -c '.contact.info.phones[]' contacts.json
+            jq -c '.contact.info.phones' contacts.json
         </jq-command>
     </example>
     <example>
         <user-request>
-            Convert log.json entries to CSV format with timestamp,level,message
+            Convert log.json entries to CSV format with timestamp, level, message
         </user-request>
         <jq-command>
             jq -r '.[] | [.timestamp, .level, .message] | @csv' log.json
         </jq-command>
-        <example>
-            <user-request>
-                Sort records in people.json by age in descending order
-            </user-request>
-            <jq-command>
-                jq 'sort_by(.age) | reverse' people.json
-            </jq-command>
-        </example>
+    </example>
+    <example>
+        <user-request>
+            Sort records in people.json by age in descending order
+        </user-request>
+        <jq-command>
+            jq 'sort_by(.age) | reverse' people.json
+        </jq-command>
+    </example>
     <example>
         <user-request>
             Save active users from data/users.json to a new file
         </user-request>
         <jq-command>
-            jq '.[] | select(.status == "active")' data/users.json > data/active_users.json
+            jq '[.[] | select(.status == "active")]' data/users.json > data/active_users.json
         </jq-command>
     </example>
     <example>
@@ -86,11 +100,11 @@ JQ_PROMPT = """<purpose>
             Filter scores above 80 from data/mock.json and save to ./high_scores.json
         </user-request>
         <jq-command>
-            jq '.[] | select(.score > 80)' data/mock.json > ./high_scores.json
+            jq '[.[] | select(.score > 80)]' data/mock.json > ./high_scores.json
         </jq-command>
     </example>
-    </example>
 </examples>
+
 
 <user-request>
     {{user_request}}
