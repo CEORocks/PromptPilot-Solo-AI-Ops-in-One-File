@@ -8,32 +8,23 @@ import os
 import sys
 from google import genai
 
+# Configure the API key
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if not GEMINI_API_KEY:
+    print("Error: GEMINI_API_KEY environment variable is not set")
+    sys.exit(1)
+
+client = genai.Client(api_key=GEMINI_API_KEY, http_options={"api_version": "v1alpha"})
+
+
 def main():
-    # Configure the API key
-    GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
-    if not GOOGLE_API_KEY:
-        print("Error: GOOGLE_API_KEY environment variable is not set")
-        print("Please get your API key from https://makersuite.google.com/app/apikey")
-        print("Then set it with: export GOOGLE_API_KEY='your-api-key-here'")
-        sys.exit(1)
 
-    try:
-        # Initialize the client
-        client = genai.Client(api_key=GOOGLE_API_KEY)
+    response = client.models.generate_content(
+        model="gemini-2.0-flash-001", contents="What is the capital of France?"
+    )
 
-        # Generate text
-        prompt = "What is the capital of France?"
-        print(f"\nPrompt: {prompt}")
-        
-        response = client.models.generate_content(
-            model='gemini-1.0-pro',
-            contents=prompt
-        )
-        print("\nResponse:", response.text)
+    print("\nResponse:", response.text)
 
-    except Exception as e:
-        print(f"\nError occurred: {str(e)}")
-        sys.exit(1)
 
 if __name__ == "__main__":
     main()
