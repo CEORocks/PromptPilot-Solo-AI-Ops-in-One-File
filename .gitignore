@@ -1,2 +1,5 @@
 .aider*
 session_dir/
+
+data/*
+!data/mock.json

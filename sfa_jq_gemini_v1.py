@@ -65,6 +65,30 @@ JQ_PROMPT = """<purpose>
                 jq 'sort_by(.age) | reverse' people.json
             </jq-command>
         </example>
+    <example>
+        <user-request>
+            Save active users from data/users.json to a new file
+        </user-request>
+        <jq-command>
+            jq '.[] | select(.status == "active")' data/users.json > data/active_users.json
+        </jq-command>
+    </example>
+    <example>
+        <user-request>
+            Convert data.json to CSV for keys name, age, city and save in same directory
+        </user-request>
+        <jq-command>
+            jq -r '.[] | [.name, .age, .city] | @csv' data/testing/data.json > data/testing/data_csv.csv
+        </jq-command>
+    </example>
+    <example>
+        <user-request>
+            Filter scores above 80 from data/mock.json and save to ./high_scores.json
+        </user-request>
+        <jq-command>
+            jq '.[] | select(.score > 80)' data/mock.json > ./high_scores.json
+        </jq-command>
+    </example>
     </example>
 </examples>
 
