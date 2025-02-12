@@ -9,6 +9,60 @@ import sys
 import argparse
 from google import genai
 
+JQ_PROMPT = """<purpose>
+    You are a world-class expert at crafting precise jq commands for JSON processing.
+    Your goal is to generate accurate, minimal jq commands that exactly match the user's data manipulation needs.
+</purpose>
+
+<instructions>
+    <instruction>Return ONLY the jq command - no explanations, comments, or extra text.</instruction>
+    <instruction>Always reference the input file specified in the user request (e.g., using -f flag if needed).</instruction>
+    <instruction>Ensure the command follows jq best practices for efficiency and readability.</instruction>
+    <instruction>Use the examples to understand different types of jq command patterns.</instruction>
+    <instruction>When user asks to pipe or output to a file, use the correct syntax for the command and create a file name (if not specified) based on a shorted version of the user-request and the input file name.</instruction>
+</instructions>
+
+<examples>
+    <example>
+        <user-request>
+            Select the "name" and "age" fields from data.json where age > 30
+        </user-request>
+        <jq-command>
+            jq '.[] | select(.age > 30) | {name, age}' data.json
+        </jq-command>
+    </example>
+    <example>
+        <user-request>
+            Count the number of entries in users.json with status "active"
+        </user-request>
+        <jq-command>
+            jq '[.[] | select(.status == "active")] | length' users.json
+        </jq-command>
+    </example>
+    <example>
+        <user-request>
+            Extract nested phone numbers from contacts.json using compact output
+        </user-request>
+        <jq-command>
+            jq -c '.contact.info.phones[]' contacts.json
+        </jq-command>
+    </example>
+    <example>
+        <user-request>
+            Convert log.json entries to CSV format with timestamp,level,message
+        </user-request>
+        <jq-command>
+            jq -r '.[] | [.timestamp, .level, .message] | @csv' log.json
+        </jq-command>
+    </example>
+</examples>
+
+<user-request>
+    {{user_request}}
+</user-request>
+
+Your jq command:"""
+
 
 def main():
     # Set up argument parser
