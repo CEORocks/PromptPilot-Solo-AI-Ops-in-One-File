@@ -3,3 +3,4 @@ session_dir/
 
 data/*
 !data/mock.json
+!data/mock.db
