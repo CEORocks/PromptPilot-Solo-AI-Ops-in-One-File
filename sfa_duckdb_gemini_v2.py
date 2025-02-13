@@ -95,7 +95,7 @@ def sample_table(reasoning: str, table_name: str, row_count: int) -> str:
     Args:
         reasoning: Explanation of why we're sampling this table
         table_name: Name of table to sample from
-        row_count: Number of rows to sample (aim for something low here like 3-5)
+        row_count: Number of rows to sample (aim for 3-5 rows)
 
     Returns:
         String containing sample rows in readable format
@@ -237,7 +237,7 @@ AGENT_PROMPT = """<purpose>
             <parameter>
                 <name>row_count</name>
                 <type>integer</type>
-                <description>Number of rows to sample (aim for something low here like 3-5)</description>
+                <description>Number of rows to sample aim for 3-5 rows</description>
             </parameter>
         </parameters>
     </tool>
@@ -352,7 +352,10 @@ def main():
                 for func_call in response.function_calls:
                     # Extract function name and args
                     func_name = func_call.name
-                    func_args = json.loads(func_call.args)
+                    func_args = func_call.args
+
+                    console.print(f"[blue]Function Call:[/blue] {func_name}")
+                    console.print(f"[dim]Args: {func_args}[/dim]")
 
                     # Call appropriate function
                     if func_name == "list_tables":
