@@ -165,12 +165,17 @@ def main():
                 duckdb_command, shell=True, text=True, capture_output=True
             )
             if result.returncode != 0:
-                print("\n❌ Error executing command:", result.stderr)
+                print(
+                    f"\n❌ Error executing command (return code: {result.returncode}):",
+                    result.stderr,
+                )
                 sys.exit(1)
-            print(result.stdout + result.stderr)
 
-            if not result.stderr:
-                print("\n✅ Command executed successfully")
+            if result.stderr:
+                print("❌ Error executing command:", result.stderr)
+
+            if result.stdout:
+                print("✅ Command executed successfully")
 
     except Exception as e:
         print(f"\nError occurred: {str(e)}")
