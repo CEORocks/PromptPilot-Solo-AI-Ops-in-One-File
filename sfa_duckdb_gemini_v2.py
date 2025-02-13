@@ -357,25 +357,33 @@ def main():
                     console.print(f"[blue]Function Call:[/blue] {func_name}")
                     console.print(f"[dim]Args: {func_args}[/dim]")
 
-                    # Call appropriate function
-                    if func_name == "list_tables":
-                        result = list_tables(**func_args)
-                    elif func_name == "describe_table":
-                        result = describe_table(**func_args)
-                    elif func_name == "sample_table":
-                        result = sample_table(**func_args)
-                    elif func_name == "run_test_sql_query":
-                        result = run_test_sql_query(**func_args)
-                    elif func_name == "run_final_sql_query":
-                        result = run_final_sql_query(**func_args)
-                        console.print("\n[green]Final Results:[/green]")
-                        console.print(result)
-                        return  # Exit after final query
+                    try:
+                        # Call appropriate function
+                        if func_name == "list_tables":
+                            result = list_tables(**func_args)
+                        elif func_name == "describe_table":
+                            result = describe_table(**func_args)
+                        elif func_name == "sample_table":
+                            result = sample_table(**func_args)
+                        elif func_name == "run_test_sql_query":
+                            result = run_test_sql_query(**func_args)
+                        elif func_name == "run_final_sql_query":
+                            result = run_final_sql_query(**func_args)
+                            console.print("\n[green]Final Results:[/green]")
+                            console.print(result)
+                            return  # Exit after final query
 
-                    # Add result to messages
-                    messages.append(
-                        {"role": "function", "name": func_name, "content": str(result)}
-                    )
+                        # Add successful result to messages
+                        messages.append(
+                            {"role": "function", "name": func_name, "content": str(result)}
+                        )
+                    except Exception as e:
+                        # Add error message for failed function call
+                        error_msg = f"Error executing {func_name} with args {func_args}. Try again: {str(e)}"
+                        messages.append(
+                            {"role": "function", "name": func_name, "content": error_msg}
+                        )
+                        console.print(f"[red]{error_msg}[/red]")
 
             # Add model response to messages
             messages.append({"role": "model", "content": response.text})
