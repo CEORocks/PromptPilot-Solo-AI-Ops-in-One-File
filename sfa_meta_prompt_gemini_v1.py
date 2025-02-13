@@ -9,13 +9,23 @@
 """
 /// Example Usage
 
-# Generate a meta prompt using the required arguments
+# Generate a meta prompt using command-line arguments.
+# Optional arguments are marked with a ?.
+
 uv run sfa_meta_prompt_gemini_v1.py \
     --purpose "generate mermaid diagrams" \
     --instructions "generate a mermaid valid chart, use diagram type specified or default flow, use examples to understand the structure of the output" \
-    --sections "examples, user-prompt" \
-    --examples "create examples of 3 basic mermaid charts with <user-chart-request> and <chart-response> blocks" \
-    --variables "user-prompt"
+    --sections? "examples, user-prompt" \
+    --examples? "create examples of 3 basic mermaid charts with <user-chart-request> and <chart-response> blocks" \
+    --variables? "user-prompt"
+
+# Without optional arguments, the script will enter interactive mode.
+uv run sfa_meta_prompt_gemini_v1.py \
+    --purpose "generate mermaid diagrams" \
+    --instructions "generate a mermaid valid chart, use diagram type specified or default flow, use examples to understand the structure of the output"
+
+# Alternatively, just run the script without any flags to enter interactive mode.
+uv run sfa_meta_prompt_gemini_v1.py
 
 ///
 """
@@ -57,6 +67,9 @@ META_PROMPT = """<purpose>
     <instruction>Ensure that each section builds logically upon the previous ones, creating a coherent narrative from purpose to instructions, sections, and examples.</instruction>
     <instruction>Use direct, simple language and avoid unnecessary complexity to make the final prompt easy to understand.</instruction>
     <instruction>After creating the full prompt, perform a final validation to confirm that all placeholders, instructions, and examples are included, properly formatted, and consistent.</instruction>
+    <instruction>If examples are not requested, don't create them.</instruction>
+    <instruction>If sections are not requested, don't create them.</instruction>
+    <instruction>If variables are not requested, just create a section for the user-input.</instruction>
 </instructions>
 
 <input-format>
@@ -291,45 +304,92 @@ Your LaTeX equation:
 """
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Generate a meta prompt for Gemini based on input structure"
-    )
-    parser.add_argument(
-        "--purpose", type=str, required=True, help="The main purpose of the prompt"
-    )
-    parser.add_argument(
-        "--instructions",
-        type=str,
-        required=True,
-        help="The detailed instructions for generating the output",
-    )
-    parser.add_argument(
-        "--sections", type=str, help="Additional sections to include (optional)"
-    )
-    parser.add_argument(
-        "--examples", type=str, help="Examples for the prompt (optional)"
-    )
-    parser.add_argument(
-        "--variables", type=str, help="Variables to be used in the prompt (optional)"
-    )
-    args = parser.parse_args()
+def interactive_input():
+    print("No command-line arguments provided. Entering interactive mode.\n")
+    # Purpose (required)
+    purpose = input(
+        "🎯 Enter the main purpose of the prompt (required, e.g., 'generate mermaid diagrams'): "
+    ).strip()
+    while not purpose:
+        print("Purpose is required!")
+        purpose = input(
+            "🎯 Enter the main purpose of the prompt (required, e.g., 'generate mermaid diagrams'): "
+        ).strip()
 
-    # Ensure required arguments are provided
-    if not args.purpose or not args.instructions:
-        print("Error: --purpose and --instructions are required.")
-        sys.exit(1)
+    # Instructions (required)
+    instructions = input(
+        "📝 Enter the detailed instructions for generating the output (required, e.g., 'generate a mermaid valid chart, use diagram type specified or default flow, use examples to understand the structure of the output'): "
+    ).strip()
+    while not instructions:
+        print("Instructions are required!")
+        instructions = input(
+            "📝 Enter the detailed instructions for generating the output (required, e.g., 'generate a mermaid valid chart, use diagram type specified or default flow, use examples to understand the structure of the output'): "
+        ).strip()
+
+    # Sections (optional)
+    sections = input(
+        "📑 Enter additional sections to include (optional, e.g., 'examples, user-prompt') (Press Enter to skip): "
+    ).strip()
+
+    # Examples (optional)
+    examples = input(
+        "💡 Enter examples for the prompt (optional, e.g., 'create examples of 3 basic mermaid charts with <user-chart-request> and <chart-response> blocks') (Press Enter to skip): "
+    ).strip()
+
+    # Variables (optional)
+    variables = input(
+        "🔄 Enter variables to be used in the prompt (optional, e.g., 'user-prompt') (Press Enter to skip): "
+    ).strip()
+
+    return purpose, instructions, sections, examples, variables
+
+
+def main():
+    # Check if any command-line arguments besides the script name were provided
+    if len(sys.argv) == 1:
+        purpose, instructions, sections, examples, variables = interactive_input()
+    else:
+        parser = argparse.ArgumentParser(
+            description="Generate a meta prompt for Gemini based on input structure"
+        )
+        parser.add_argument(
+            "--purpose", type=str, required=True, help="The main purpose of the prompt"
+        )
+        parser.add_argument(
+            "--instructions",
+            type=str,
+            required=True,
+            help="The detailed instructions for generating the output",
+        )
+        parser.add_argument(
+            "--sections", type=str, help="Additional sections to include (optional)"
+        )
+        parser.add_argument(
+            "--examples", type=str, help="Examples for the prompt (optional)"
+        )
+        parser.add_argument(
+            "--variables",
+            type=str,
+            help="Variables to be used in the prompt (optional)",
+        )
+        args = parser.parse_args()
+
+        purpose = args.purpose
+        instructions = args.instructions
+        sections = args.sections if args.sections else ""
+        examples = args.examples if args.examples else ""
+        variables = args.variables if args.variables else ""
 
     # Build the concatenated input string using the input-format structure.
     input_parts = []
-    input_parts.append(f"Purpose: {args.purpose}")
-    input_parts.append(f"Instructions: {args.instructions}")
-    if args.sections:
-        input_parts.append(f"Sections: {args.sections}")
-    if args.examples:
-        input_parts.append(f"Examples: {args.examples}")
-    if args.variables:
-        input_parts.append(f"Variables: {args.variables}")
+    input_parts.append(f"Purpose: {purpose}")
+    input_parts.append(f"Instructions: {instructions}")
+    if sections:
+        input_parts.append(f"Sections: {sections}")
+    if examples:
+        input_parts.append(f"Examples: {examples}")
+    if variables:
+        input_parts.append(f"Variables: {variables}")
 
     user_input = ", ".join(input_parts)
 
@@ -349,7 +409,7 @@ def main():
         response = client.models.generate_content(
             model="gemini-2.0-flash-001", contents=prompt
         )
-        # Simply output the response from the Gemini model.
+        # Output the response from the Gemini model.
         print(response.text.strip())
     except Exception as e:
         print(f"Error occurred: {str(e)}")
