@@ -318,8 +318,15 @@ def main():
     # Initialize Gemini client
     client = genai.Client(api_key=GEMINI_API_KEY)
 
+    completed_prompt = AGENT_PROMPT.replace("{{user_request}}", args.prompt)
+
     # Initialize message history
-    messages = []
+    messages = [
+        {
+            "role": "user",
+            "content": completed_prompt,
+        }
+    ]
 
     # Main agent loop
     for i in range(args.compute):
@@ -331,7 +338,6 @@ def main():
                 model="gemini-2.0-flash-001",
                 contents=[
                     *messages,
-                    AGENT_PROMPT.replace("{{user_request}}", args.prompt),
                 ],
                 config=types.GenerateContentConfig(
                     tools=[
@@ -375,18 +381,24 @@ def main():
 
                         # Add successful result to messages
                         messages.append(
-                            {"role": "function", "name": func_name, "content": str(result)}
+                            {
+                                "role": "function",
+                                "name": func_name,
+                                "content": str(result),
+                            }
                         )
                     except Exception as e:
                         # Add error message for failed function call
                         error_msg = f"Error executing {func_name} with args {func_args}. Try again: {str(e)}"
-                        messages.append(
-                            {"role": "function", "name": func_name, "content": error_msg}
-                        )
-                        console.print(f"[red]{error_msg}[/red]")
 
-            # Add model response to messages
-            messages.append({"role": "model", "content": response.text})
+                        messages.append({"role": "model", "content": error_msg})
+
+                        console.print(f"[red]{error_msg}[/red]")
+                        continue
+
+            else:
+                # Add model response to messages
+                messages.append({"role": "model", "content": response.text})
 
         except Exception as e:
             console.print(f"[red]Error in agent loop: {str(e)}[/red]")
