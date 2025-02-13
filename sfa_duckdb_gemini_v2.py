@@ -294,7 +294,7 @@ def main():
         "-c",
         "--compute",
         type=int,
-        default=3,
+        default=10,
         help="Maximum number of agent loops (default: 3)",
     )
     args = parser.parse_args()
@@ -321,16 +321,25 @@ def main():
     completed_prompt = AGENT_PROMPT.replace("{{user_request}}", args.prompt)
 
     # Initialize message history
-    messages = [
-        {
-            "role": "user",
-            "content": completed_prompt,
-        }
-    ]
+    # messages = [types.Content(parts=[types.Part.from_text(text=completed_prompt)])]
+    messages = [completed_prompt]
+
+    compute_iterations = 0
 
     # Main agent loop
-    for i in range(args.compute):
-        console.rule(f"[yellow]Agent Loop {i+1}/{args.compute}[/yellow]")
+    while True:
+        console.rule(
+            f"[yellow]Agent Loop {compute_iterations+1}/{args.compute}[/yellow]"
+        )
+        compute_iterations += 1
+
+        if compute_iterations >= args.compute:
+            console.print(
+                "[yellow]Warning: Reached maximum compute loops without final query[/yellow]"
+            )
+            raise Exception(
+                f"Maximum compute loops reached: {compute_iterations}/{args.compute}"
+            )
 
         try:
             # Generate content with tool support
@@ -382,7 +391,7 @@ def main():
                         # Add successful result to messages
                         messages.append(
                             {
-                                "role": "function",
+                                "role": "model",
                                 "name": func_name,
                                 "content": str(result),
                             }
@@ -391,23 +400,18 @@ def main():
                         # Add error message for failed function call
                         error_msg = f"Error executing {func_name} with args {func_args}. Try again: {str(e)}"
 
-                        messages.append({"role": "model", "content": error_msg})
+                        messages.append(error_msg)
 
                         console.print(f"[red]{error_msg}[/red]")
                         continue
 
             else:
                 # Add model response to messages
-                messages.append({"role": "model", "content": response.text})
+                messages.append(response.text)
 
         except Exception as e:
             console.print(f"[red]Error in agent loop: {str(e)}[/red]")
             raise e
-            sys.exit(1)
-
-    console.print(
-        "[yellow]Warning: Reached maximum compute loops without final query[/yellow]"
-    )
 
 
 if __name__ == "__main__":
