@@ -2,7 +2,7 @@
 
 # /// script
 # dependencies = [
-#   "google-genai>=1.1.0",
+#   "openai>=1.62.0",
 # ]
 # ///
 
@@ -12,20 +12,20 @@
 # Generate a meta prompt using command-line arguments.
 # Optional arguments are marked with a ?.
 
-uv run sfa_meta_prompt_gemini_v1.py \
+uv run sfa_meta_prompt_openai_v1.py \
     --purpose "generate mermaid diagrams" \
     --instructions "generate a mermaid valid chart, use diagram type specified or default flow, use examples to understand the structure of the output" \
-    --sections? "examples, user-prompt" \
-    --examples? "create examples of 3 basic mermaid charts with <user-chart-request> and <chart-response> blocks" \
-    --variables? "user-prompt"
+    --sections "examples, user-prompt" \
+    --examples "create examples of 3 basic mermaid charts with <user-chart-request> and <chart-response> blocks" \
+    --variables "user-prompt"
 
 # Without optional arguments, the script will enter interactive mode.
-uv run sfa_meta_prompt_gemini_v1.py \
+uv run sfa_meta_prompt_openai_v1.py \
     --purpose "generate mermaid diagrams" \
     --instructions "generate a mermaid valid chart, use diagram type specified or default flow, use examples to understand the structure of the output"
 
 # Alternatively, just run the script without any flags to enter interactive mode.
-uv run sfa_meta_prompt_gemini_v1.py
+uv run sfa_meta_prompt_openai_v1.py
 
 ///
 """
@@ -33,7 +33,7 @@ uv run sfa_meta_prompt_gemini_v1.py
 import os
 import sys
 import argparse
-from google import genai
+import openai
 
 META_PROMPT = """<purpose>
     You are an expert prompt engineer, capable of creating detailed and effective prompts for language models.
@@ -201,7 +201,7 @@ Your review of the git diff:
 <instructions>
     <instruction>Read the user-input plain text mathematical expression carefully.</instruction>
     <instruction>Convert it into a well-formatted LaTeX equation environment.</instruction>
-    <instruction>Ensure the final output is wrapped in a LaTeX display math environment like \[ ... \].</instruction>
+    <instruction>Ensure the final output is wrapped in a LaTeX display math environment.</instruction>
 </instructions>
 
 <user-input>
@@ -350,7 +350,7 @@ def main():
         purpose, instructions, sections, examples, variables = interactive_input()
     else:
         parser = argparse.ArgumentParser(
-            description="Generate a meta prompt for Gemini based on input structure"
+            description="Generate a meta prompt for OpenAI's o3-mini based on input structure"
         )
         parser.add_argument(
             "--purpose", type=str, required=True, help="The main purpose of the prompt"
@@ -396,21 +396,22 @@ def main():
     # Replace the placeholder with our concatenated user input.
     prompt = META_PROMPT.replace("{{user-input}}", user_input)
 
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-    if not GEMINI_API_KEY:
-        print("Error: GEMINI_API_KEY environment variable is not set")
+    # Set up OpenAI API key from the environment variable.
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    if not openai_api_key:
+        print("Error: OPENAI_API_KEY environment variable is not set")
         sys.exit(1)
-
-    client = genai.Client(
-        api_key=GEMINI_API_KEY, http_options={"api_version": "v1alpha"}
-    )
+    openai.api_key = openai_api_key
 
     try:
-        response = client.models.generate_content(
-            model="gemini-2.0-flash-001", contents=prompt
+        # Use OpenAI's ChatCompletion API with the o3-mini model and high reasoning effort settings.
+        response = openai.chat.completions.create(
+            model="o3-mini",
+            reasoning_effort="high",
+            messages=[{"role": "user", "content": prompt}],
         )
-        # Output the response from the Gemini model.
-        print(response.text.strip())
+        # Output the response from the OpenAI model.
+        print(response.choices[0].message.content.strip())
     except Exception as e:
         print(f"Error occurred: {str(e)}")
         sys.exit(1)
