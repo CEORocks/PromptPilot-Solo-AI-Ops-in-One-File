@@ -29,27 +29,161 @@ from typing import List
 from rich.console import Console
 from rich.panel import Panel
 import openai
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
+from openai import pydantic_function_tool
 
 # Initialize rich console
 console = Console()
 
-# Define Pydantic schemas for tool arguments
+# Create our list of function tools from our pydantic models
 class ListTablesArgs(BaseModel):
-    reasoning: str
+    reasoning: str = Field(..., description="Explanation for listing tables relative to the user request")
 
 class DescribeTableArgs(BaseModel):
-    reasoning: str
-    table_name: str
+    reasoning: str = Field(..., description="Reason why the table schema is needed")
+    table_name: str = Field(..., description="Name of the table to describe")
 
 class SampleTableArgs(BaseModel):
-    reasoning: str
-    table_name: str
-    row_sample_size: int
+    reasoning: str = Field(..., description="Explanation for sampling the table")
+    table_name: str = Field(..., description="Name of the table to sample")
+    row_sample_size: int = Field(..., description="Number of rows to sample (aim for 3-5 rows)")
 
-class SQLQueryArgs(BaseModel):
-    reasoning: str
-    sql_query: str
+class RunTestSQLQuery(BaseModel):
+    reasoning: str = Field(..., description="Reason for testing this query")
+    sql_query: str = Field(..., description="The SQL query to test")
+
+class RunFinalSQLQuery(BaseModel):
+    reasoning: str = Field(..., description="Final explanation of how this query satisfies the user request")
+    sql_query: str = Field(..., description="The validated SQL query to run")
+
+# Create tools list
+tools = [
+    pydantic_function_tool(ListTablesArgs),
+    pydantic_function_tool(DescribeTableArgs),
+    pydantic_function_tool(SampleTableArgs),
+    pydantic_function_tool(RunTestSQLQuery),
+    pydantic_function_tool(RunFinalSQLQuery),
+]
+
+AGENT_PROMPT = """<purpose>
+    You are a world-class expert at crafting precise DuckDB SQL queries.
+    Your goal is to generate accurate queries that exactly match the user's data needs.
+</purpose>
+
+<instructions>
+    <instruction>Use the provided tools to explore the database and construct the perfect query.</instruction>
+    <instruction>Start by listing tables to understand what's available.</instruction>
+    <instruction>Describe tables to understand their schema and columns.</instruction>
+    <instruction>Sample tables to see actual data patterns.</instruction>
+    <instruction>Test queries before finalizing them.</instruction>
+    <instruction>Only call run_final_sql_query when you're confident the query is perfect.</instruction>
+    <instruction>Be thorough but efficient with tool usage.</instruction>
+    <instruction>Think step by step about what information you need.</instruction>
+    <instruction>Be sure to specify every parameter for each tool call.</instruction>
+    <instruction>Every tool call should have a reasoning parameter which gives you a place to explain why you are calling the tool.</instruction>
+</instructions>
+
+<tools>
+    <tool>
+        <name>list_tables</name>
+        <description>Returns list of available tables in database</description>
+        <parameters>
+            <parameter>
+                <name>reasoning</name>
+                <type>string</type>
+                <description>Why we need to list tables relative to user request</description>
+                <required>true</required>
+            </parameter>
+        </parameters>
+    </tool>
+    
+    <tool>
+        <name>describe_table</name>
+        <description>Returns schema info for specified table</description>
+        <parameters>
+            <parameter>
+                <name>reasoning</name>
+                <type>string</type>
+                <description>Why we need to describe this table</description>
+                <required>true</required>
+            </parameter>
+            <parameter>
+                <name>table_name</name>
+                <type>string</type>
+                <description>Name of table to describe</description>
+                <required>true</required>
+            </parameter>
+        </parameters>
+    </tool>
+    
+    <tool>
+        <name>sample_table</name>
+        <description>Returns sample rows from specified table, always specify row_sample_size</description>
+        <parameters>
+            <parameter>
+                <name>reasoning</name>
+                <type>string</type>
+                <description>Why we need to sample this table</description>
+                <required>true</required>
+            </parameter>
+            <parameter>
+                <name>table_name</name>
+                <type>string</type>
+                <description>Name of table to sample</description>
+                <required>true</required>
+            </parameter>
+            <parameter>
+                <name>row_sample_size</name>
+                <type>integer</type>
+                <description>Number of rows to sample aim for 3-5 rows</description>
+                <required>true</required>
+            </parameter>
+        </parameters>
+    </tool>
+    
+    <tool>
+        <name>run_test_sql_query</name>
+        <description>Tests a SQL query and returns results (only visible to agent)</description>
+        <parameters>
+            <parameter>
+                <name>reasoning</name>
+                <type>string</type>
+                <description>Why we're testing this specific query</description>
+                <required>true</required>
+            </parameter>
+            <parameter>
+                <name>sql_query</name>
+                <type>string</type>
+                <description>The SQL query to test</description>
+                <required>true</required>
+            </parameter>
+        </parameters>
+    </tool>
+    
+    <tool>
+        <name>run_final_sql_query</name>
+        <description>Runs the final validated SQL query and shows results to user</description>
+        <parameters>
+            <parameter>
+                <name>reasoning</name>
+                <type>string</type>
+                <description>Final explanation of how query satisfies user request</description>
+                <required>true</required>
+            </parameter>
+            <parameter>
+                <name>sql_query</name>
+                <type>string</type>
+                <description>The validated SQL query to run</description>
+                <required>true</required>
+            </parameter>
+        </parameters>
+    </tool>
+</tools>
+
+<user-request>
+    {{user_request}}
+</user-request>
+"""
 
 def list_tables(reasoning: str) -> List[str]:
     """Returns a list of tables in the database.
@@ -220,21 +354,9 @@ def main():
     global DB_PATH
     DB_PATH = args.db
 
-    # Initialize message history
-    messages = [
-        {
-            "role": "system",
-            "content": "You are a world-class expert at crafting precise DuckDB SQL queries. "
-            "Your goal is to generate accurate queries that exactly match the user's data needs. "
-            "Start by listing tables to understand what's available. "
-            "Then describe tables to understand their schema and columns. "
-            "Sample tables to see actual data patterns. "
-            "Test queries before finalizing them. "
-            "Only call run_final_sql_query when you're confident the query is perfect. "
-            "Be thorough but efficient with tool usage. "
-            "Think step by step about what information you need."
-        }
-    ]
+    # Create a single combined prompt based on the full template
+    completed_prompt = AGENT_PROMPT.replace("{{user_request}}", args.prompt)
+    messages = [{"role": "user", "content": completed_prompt}]
 
     compute_iterations = 0
 
@@ -254,78 +376,13 @@ def main():
             )
 
         try:
-            # Add the user's initial prompt if this is the first iteration
-            if compute_iterations == 1:
-                messages.append({"role": "user", "content": args.prompt})
-
             # Generate content with tool support
             response = openai.ChatCompletion.create(
                 model="o3-mini",
                 max_tokens=1024,
                 messages=messages,
-                functions=[
-                    {
-                        "name": "list_tables",
-                        "description": "Returns list of available tables in database",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "reasoning": {"type": "string", "description": "Explanation for listing tables"}
-                            },
-                            "required": ["reasoning"]
-                        }
-                    },
-                    {
-                        "name": "describe_table",
-                        "description": "Returns schema info for a table",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "reasoning": {"type": "string"},
-                                "table_name": {"type": "string"}
-                            },
-                            "required": ["reasoning", "table_name"]
-                        }
-                    },
-                    {
-                        "name": "sample_table",
-                        "description": "Returns sample rows of a table",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "reasoning": {"type": "string"},
-                                "table_name": {"type": "string"},
-                                "row_sample_size": {"type": "integer"}
-                            },
-                            "required": ["reasoning", "table_name", "row_sample_size"]
-                        }
-                    },
-                    {
-                        "name": "run_test_sql_query",
-                        "description": "Runs a test SQL query and returns results",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "reasoning": {"type": "string"},
-                                "sql_query": {"type": "string"}
-                            },
-                            "required": ["reasoning", "sql_query"]
-                        }
-                    },
-                    {
-                        "name": "run_final_sql_query",
-                        "description": "Runs final validated SQL query and returns results",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "reasoning": {"type": "string"},
-                                "sql_query": {"type": "string"}
-                            },
-                            "required": ["reasoning", "sql_query"]
-                        }
-                    },
-                ],
-                function_call={"name": "any"},  # always force a tool call
+                tools=tools,
+                tool_choice={"type": "function"},  # always force a tool call
                 temperature=0.0
             )
 
@@ -338,20 +395,24 @@ def main():
                     console.print(f"[blue]Function Call:[/blue] {func_name}({func_args_str})")
                     try:
                         # Validate and parse arguments using the corresponding pydantic model
-                        if func_name == "list_tables":
+                        if func_name == "ListTablesArgs":
                             args_parsed = ListTablesArgs.parse_raw(func_args_str)
                             result = list_tables(reasoning=args_parsed.reasoning)
-                        elif func_name == "describe_table":
+                        elif func_name == "DescribeTableArgs":
                             args_parsed = DescribeTableArgs.parse_raw(func_args_str)
                             result = describe_table(reasoning=args_parsed.reasoning, table_name=args_parsed.table_name)
-                        elif func_name == "sample_table":
+                        elif func_name == "SampleTableArgs":
                             args_parsed = SampleTableArgs.parse_raw(func_args_str)
-                            result = sample_table(reasoning=args_parsed.reasoning, table_name=args_parsed.table_name, row_sample_size=args_parsed.row_sample_size)
-                        elif func_name == "run_test_sql_query":
-                            args_parsed = SQLQueryArgs.parse_raw(func_args_str)
+                            result = sample_table(
+                                reasoning=args_parsed.reasoning,
+                                table_name=args_parsed.table_name,
+                                row_sample_size=args_parsed.row_sample_size,
+                            )
+                        elif func_name == "RunTestSQLQuery":
+                            args_parsed = RunTestSQLQuery.parse_raw(func_args_str)
                             result = run_test_sql_query(reasoning=args_parsed.reasoning, sql_query=args_parsed.sql_query)
-                        elif func_name == "run_final_sql_query":
-                            args_parsed = SQLQueryArgs.parse_raw(func_args_str)
+                        elif func_name == "RunFinalSQLQuery":
+                            args_parsed = RunFinalSQLQuery.parse_raw(func_args_str)
                             result = run_final_sql_query(reasoning=args_parsed.reasoning, sql_query=args_parsed.sql_query)
                             console.print("\n[green]Final Results:[/green]")
                             console.print(result)
