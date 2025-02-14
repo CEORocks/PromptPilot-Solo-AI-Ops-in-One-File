@@ -394,6 +394,8 @@ def main():
                 f"Maximum compute loops reached: {compute_iterations}/{args.compute}"
             )
 
+        console.print("messages: ", messages)
+
         try:
             # Generate content with tool support
             response = openai.chat.completions.create(
@@ -432,29 +434,39 @@ def main():
                     try:
                         # Validate and parse arguments using the corresponding pydantic model
                         if func_name == "ListTablesArgs":
-                            args_parsed = ListTablesArgs.parse_raw(func_args_str)
+                            args_parsed = ListTablesArgs.model_validate_json(
+                                func_args_str
+                            )
                             result = list_tables(reasoning=args_parsed.reasoning)
                         elif func_name == "DescribeTableArgs":
-                            args_parsed = DescribeTableArgs.parse_raw(func_args_str)
+                            args_parsed = DescribeTableArgs.model_validate_json(
+                                func_args_str
+                            )
                             result = describe_table(
                                 reasoning=args_parsed.reasoning,
                                 table_name=args_parsed.table_name,
                             )
                         elif func_name == "SampleTableArgs":
-                            args_parsed = SampleTableArgs.parse_raw(func_args_str)
+                            args_parsed = SampleTableArgs.model_validate_json(
+                                func_args_str
+                            )
                             result = sample_table(
                                 reasoning=args_parsed.reasoning,
                                 table_name=args_parsed.table_name,
                                 row_sample_size=args_parsed.row_sample_size,
                             )
                         elif func_name == "RunTestSQLQuery":
-                            args_parsed = RunTestSQLQuery.parse_raw(func_args_str)
+                            args_parsed = RunTestSQLQuery.model_validate_json(
+                                func_args_str
+                            )
                             result = run_test_sql_query(
                                 reasoning=args_parsed.reasoning,
                                 sql_query=args_parsed.sql_query,
                             )
                         elif func_name == "RunFinalSQLQuery":
-                            args_parsed = RunFinalSQLQuery.parse_raw(func_args_str)
+                            args_parsed = RunFinalSQLQuery.model_validate_json(
+                                func_args_str
+                            )
                             result = run_final_sql_query(
                                 reasoning=args_parsed.reasoning,
                                 sql_query=args_parsed.sql_query,
@@ -469,17 +481,27 @@ def main():
                             f"[blue]Function Call Result:[/blue] {func_name}(...) -> {result}"
                         )
 
+                        messages.append(
+                            {
+                                "role": "assistant",
+                                "tool_calls": [
+                                    {
+                                        "id": tool_call.id,
+                                        "type": "function",
+                                        "function": func_call,
+                                    }
+                                ],
+                            }
+                        )
+
                         # Append the function call result into our messages as a tool response
                         messages.append(
                             {
                                 "role": "tool",
+                                "tool_call_id": tool_call.id,
                                 "content": json.dumps({"result": str(result)}),
-                                "name": func_name,
                             }
                         )
-
-                        # Also append the original assistant message so that context is maintained
-                        # messages.append(message)
 
                     except ValidationError as ve:
                         error_msg = f"Argument validation failed for {func_name}: {ve}"
@@ -487,8 +509,8 @@ def main():
                         messages.append(
                             {
                                 "role": "tool",
+                                "tool_call_id": tool_call.id,
                                 "content": json.dumps({"error": error_msg}),
-                                "name": func_name,
                             }
                         )
                     except Exception as e:
