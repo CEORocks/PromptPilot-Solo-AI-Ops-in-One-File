@@ -154,6 +154,7 @@ AGENT_PROMPT = """<purpose>
 </user-request>
 """
 
+
 def list_tables(reasoning: str) -> List[str]:
     """Returns a list of tables in the database.
 
@@ -453,20 +454,26 @@ def main():
                 tool_choice={"type": "any"},  # Always force a tool call
             )
 
-            # Look for tool calls in the response
+            # Look for tool calls in the response (expecting ToolUseBlock objects)
             tool_calls = []
-            for content in response.content:
-                if content.type == "tool_calls":
-                    tool_calls.extend(content.tool_calls)
+
+            for block in response.content:
+                if hasattr(block, "type") and block.type == "tool_use":
+                    tool_calls.append(block)
 
             if tool_calls:
                 for tool_call in tool_calls:
-                    func_name = tool_call.function.name
-                    func_args = json.loads(tool_call.function.arguments)
+                    tool_use_id = tool_call.id
+                    func_name = tool_call.name
+                    func_args = (
+                        tool_call.input
+                    )  # already a dict; no need to call json.loads
 
                     console.print(
                         f"[blue]Tool Call:[/blue] {func_name}({json.dumps(func_args)})"
                     )
+
+                    messages.append({"role": "assistant", "content": response.content})
 
                     try:
                         if func_name == "list_tables":
@@ -499,36 +506,19 @@ def main():
                             raise Exception(f"Unknown tool call: {func_name}")
 
                         console.print(
-                            f"[blue]Tool Call Result:[/blue] {func_name}(...) -> {result}"
+                            f"[blue]Tool Call Result:[/blue] {func_name}(...) -> \n{result}"
                         )
 
-                        # Add tool result to messages
                         messages.append(
                             {
-                                "role": "assistant",
+                                "role": "user",
                                 "content": [
                                     {
-                                        "type": "tool_calls",
-                                        "tool_calls": [
-                                            {
-                                                "id": tool_call.id,
-                                                "type": "function",
-                                                "function": {
-                                                    "name": func_name,
-                                                    "arguments": json.dumps(func_args),
-                                                },
-                                            }
-                                        ],
+                                        "type": "tool_result",
+                                        "tool_use_id": tool_use_id,
+                                        "content": str(result),
                                     }
                                 ],
-                            }
-                        )
-
-                        messages.append(
-                            {
-                                "role": "tool",
-                                "content": str(result),
-                                "tool_call_id": tool_call.id,
                             }
                         )
 
@@ -545,8 +535,7 @@ def main():
                         continue
 
             else:
-                # No tool calls, just append the response
-                messages.append({"role": "assistant", "content": response.content})
+                raise Exception("No tool calls found in response - should never happen")
 
         except Exception as e:
             console.print(f"[red]Error in agent loop: {str(e)}[/red]")
