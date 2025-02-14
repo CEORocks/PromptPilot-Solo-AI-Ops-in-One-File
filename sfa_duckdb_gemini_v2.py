@@ -47,7 +47,8 @@ def list_tables(reasoning: str) -> List[str]:
     """
     try:
         result = subprocess.run(
-            f"duckdb {DB_PATH} -c \"SELECT name FROM sqlite_master WHERE type='table';\"",
+            f'duckdb {DB_PATH} -c ".tables"',
+            # f"duckdb {DB_PATH} -c \"SELECT name FROM sqlite_master WHERE type='table';\"",
             shell=True,
             text=True,
             capture_output=True,
@@ -87,7 +88,7 @@ def describe_table(reasoning: str, table_name: str) -> str:
         return ""
 
 
-def sample_table(reasoning: str, table_name: str, row_count: int) -> str:
+def sample_table(reasoning: str, table_name: str, row_sample_size: int) -> str:
     """Returns a sample of rows from the specified table.
 
     The agent uses this to understand actual data content and patterns.
@@ -95,20 +96,20 @@ def sample_table(reasoning: str, table_name: str, row_count: int) -> str:
     Args:
         reasoning: Explanation of why we're sampling this table
         table_name: Name of table to sample from
-        row_count: Number of rows to sample (aim for 3-5 rows)
+        row_sample_size: Number of rows to sample aim for 3-5 rows
 
     Returns:
         String containing sample rows in readable format
     """
     try:
         result = subprocess.run(
-            f'duckdb {DB_PATH} -c "SELECT * FROM {table_name} LIMIT {row_count};"',
+            f'duckdb {DB_PATH} -c "SELECT * FROM {table_name} LIMIT {row_sample_size};"',
             shell=True,
             text=True,
             capture_output=True,
         )
         console.log(
-            f"[blue]Sample Table Tool[/blue] - Table: {table_name} - Rows: {row_count} - Reasoning: {reasoning}"
+            f"[blue]Sample Table Tool[/blue] - Table: {table_name} - Rows: {row_sample_size} - Reasoning: {reasoning}"
         )
         return result.stdout
     except Exception as e:
@@ -188,6 +189,8 @@ AGENT_PROMPT = """<purpose>
     <instruction>Only call run_final_sql_query when you're confident the query is perfect.</instruction>
     <instruction>Be thorough but efficient with tool usage.</instruction>
     <instruction>Think step by step about what information you need.</instruction>
+    <instruction>Be sure to specify every parameter for each tool call.</instruction>
+    <instruction>Every tool call should have a reasoning parameter which gives you a place to explain why you are calling the tool.</instruction>
 </instructions>
 
 <tools>
@@ -199,6 +202,7 @@ AGENT_PROMPT = """<purpose>
                 <name>reasoning</name>
                 <type>string</type>
                 <description>Why we need to list tables relative to user request</description>
+                <required>true</required>
             </parameter>
         </parameters>
     </tool>
@@ -211,33 +215,38 @@ AGENT_PROMPT = """<purpose>
                 <name>reasoning</name>
                 <type>string</type>
                 <description>Why we need to describe this table</description>
+                <required>true</required>
             </parameter>
             <parameter>
                 <name>table_name</name>
                 <type>string</type>
                 <description>Name of table to describe</description>
+                <required>true</required>
             </parameter>
         </parameters>
     </tool>
     
     <tool>
         <name>sample_table</name>
-        <description>Returns sample rows from specified table</description>
+        <description>Returns sample rows from specified table, always specify row_sample_size</description>
         <parameters>
             <parameter>
                 <name>reasoning</name>
                 <type>string</type>
                 <description>Why we need to sample this table</description>
+                <required>true</required>
             </parameter>
             <parameter>
                 <name>table_name</name>
                 <type>string</type>
                 <description>Name of table to sample</description>
+                <required>true</required>
             </parameter>
             <parameter>
-                <name>row_count</name>
+                <name>row_sample_size</name>
                 <type>integer</type>
                 <description>Number of rows to sample aim for 3-5 rows</description>
+                <required>true</required>
             </parameter>
         </parameters>
     </tool>
@@ -250,11 +259,13 @@ AGENT_PROMPT = """<purpose>
                 <name>reasoning</name>
                 <type>string</type>
                 <description>Why we're testing this specific query</description>
+                <required>true</required>
             </parameter>
             <parameter>
                 <name>sql_query</name>
                 <type>string</type>
                 <description>The SQL query to test</description>
+                <required>true</required>
             </parameter>
         </parameters>
     </tool>
@@ -267,11 +278,13 @@ AGENT_PROMPT = """<purpose>
                 <name>reasoning</name>
                 <type>string</type>
                 <description>Final explanation of how query satisfies user request</description>
+                <required>true</required>
             </parameter>
             <parameter>
                 <name>sql_query</name>
                 <type>string</type>
                 <description>The validated SQL query to run</description>
+                <required>true</required>
             </parameter>
         </parameters>
     </tool>
@@ -320,9 +333,10 @@ def main():
 
     completed_prompt = AGENT_PROMPT.replace("{{user_request}}", args.prompt)
 
-    # Initialize message history
-    # messages = [types.Content(parts=[types.Part.from_text(text=completed_prompt)])]
-    messages = [completed_prompt]
+    # Initialize message history with proper Content type
+    messages = [
+        types.Content(role="user", parts=[types.Part.from_text(text=completed_prompt)])
+    ]
 
     compute_iterations = 0
 
@@ -345,6 +359,7 @@ def main():
             # Generate content with tool support
             response = client.models.generate_content(
                 model="gemini-2.0-flash-001",
+                # model="gemini-1.5-flash",
                 contents=[
                     *messages,
                 ],
@@ -356,6 +371,10 @@ def main():
                         run_test_sql_query,
                         run_final_sql_query,
                     ],
+                    automatic_function_calling=types.AutomaticFunctionCallingConfig(
+                        # maximum_remote_calls=2
+                        # disable=True
+                    ),
                     tool_config=types.ToolConfig(
                         function_calling_config=types.FunctionCallingConfig(mode="ANY")
                     ),
@@ -369,8 +388,9 @@ def main():
                     func_name = func_call.name
                     func_args = func_call.args
 
-                    console.print(f"[blue]Function Call:[/blue] {func_name}")
-                    console.print(f"[dim]Args: {func_args}[/dim]")
+                    console.print(
+                        f"[blue]Function Call:[/blue] {func_name}({func_args})"
+                    )
 
                     try:
                         # Call appropriate function
@@ -388,26 +408,43 @@ def main():
                             console.print(result)
                             return  # Exit after final query
 
-                        # Add successful result to messages
-                        messages.append(
-                            {
-                                "role": "model",
-                                "name": func_name,
-                                "content": str(result),
-                            }
+                        console.print(
+                            f"[blue]Function Call Result:[/blue] {func_name}(...) -> {result}"
                         )
-                    except Exception as e:
-                        # Add error message for failed function call
-                        error_msg = f"Error executing {func_name} with args {func_args}. Try again: {str(e)}"
 
-                        messages.append(error_msg)
+                        # Add function response as proper Content type
+                        function_response = {"result": str(result)}
+                        function_response_part = types.Part.from_function_response(
+                            name=func_name,
+                            response=function_response,
+                        )
+
+                        # Add model's function call as Content
+                        messages.append(response.candidates[0].content)
+
+                        messages.append(
+                            types.Content(role="tool", parts=[function_response_part])
+                        )
+
+                    except Exception as e:
+                        # Add error response as proper Content type
+                        error_msg = f"Error executing {func_name}: {str(e)}"
+                        function_response = {"error": error_msg}
+                        function_response_part = types.Part.from_function_response(
+                            name=func_name,
+                            response=function_response,
+                        )
+                        messages.append(response.candidates[0].content)
+                        messages.append(
+                            types.Content(role="tool", parts=[function_response_part])
+                        )
 
                         console.print(f"[red]{error_msg}[/red]")
                         continue
 
             else:
-                # Add model response to messages
-                messages.append(response.text)
+                # Add model response as proper Content type
+                messages.append(response.candidates[0].content)
 
         except Exception as e:
             console.print(f"[red]Error in agent loop: {str(e)}[/red]")
