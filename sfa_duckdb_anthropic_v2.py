@@ -506,7 +506,7 @@ def main():
                             raise Exception(f"Unknown tool call: {func_name}")
 
                         console.print(
-                            f"[blue]Tool Call Result:[/blue] {func_name}(...) -> \n{result}"
+                            f"[blue]Tool Call Result:[/blue] {func_name}(...) ->\n{result}"
                         )
 
                         messages.append(

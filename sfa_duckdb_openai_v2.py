@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 # /// script
 # dependencies = [
 #   "openai>=1.63.0",
@@ -405,8 +403,6 @@ def main():
                 tool_choice="required",
             )
 
-            console.print("response: ", response)
-
             if response.choices:
                 assert len(response.choices) == 1
                 message = response.choices[0].message
@@ -487,7 +483,7 @@ def main():
                             raise Exception(f"Unknown tool call: {func_name}")
 
                         console.print(
-                            f"[blue]Function Call Result:[/blue] {func_name}(...) -> {result}"
+                            f"[blue]Function Call Result:[/blue] {func_name}(...) ->\n{result}"
                         )
 
                         # Append the function call result into our messages as a tool response

@@ -410,7 +410,7 @@ def main():
                             return  # Exit after final query
 
                         console.print(
-                            f"[blue]Function Call Result:[/blue] {func_name}(...) -> {result}"
+                            f"[blue]Function Call Result:[/blue] {func_name}(...) ->\n{result}"
                         )
 
                         # Add function response as proper Content type
