@@ -6,3 +6,5 @@ data/*
 !data/mock.db
 
 specs/
+
+patterns.log
