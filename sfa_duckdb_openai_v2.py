@@ -2,7 +2,7 @@
 
 # /// script
 # dependencies = [
-#   "openai>=1.1.0",
+#   "openai>=1.63.0",
 #   "rich>=13.7.0",
 #   "pydantic>=2.0.0",
 # ]
@@ -35,26 +35,39 @@ from openai import pydantic_function_tool
 # Initialize rich console
 console = Console()
 
+
 # Create our list of function tools from our pydantic models
 class ListTablesArgs(BaseModel):
-    reasoning: str = Field(..., description="Explanation for listing tables relative to the user request")
+    reasoning: str = Field(
+        ..., description="Explanation for listing tables relative to the user request"
+    )
+
 
 class DescribeTableArgs(BaseModel):
     reasoning: str = Field(..., description="Reason why the table schema is needed")
     table_name: str = Field(..., description="Name of the table to describe")
 
+
 class SampleTableArgs(BaseModel):
     reasoning: str = Field(..., description="Explanation for sampling the table")
     table_name: str = Field(..., description="Name of the table to sample")
-    row_sample_size: int = Field(..., description="Number of rows to sample (aim for 3-5 rows)")
+    row_sample_size: int = Field(
+        ..., description="Number of rows to sample (aim for 3-5 rows)"
+    )
+
 
 class RunTestSQLQuery(BaseModel):
     reasoning: str = Field(..., description="Reason for testing this query")
     sql_query: str = Field(..., description="The SQL query to test")
 
+
 class RunFinalSQLQuery(BaseModel):
-    reasoning: str = Field(..., description="Final explanation of how this query satisfies the user request")
+    reasoning: str = Field(
+        ...,
+        description="Final explanation of how this query satisfies the user request",
+    )
     sql_query: str = Field(..., description="The validated SQL query to run")
+
 
 # Create tools list
 tools = [
@@ -185,6 +198,7 @@ AGENT_PROMPT = """<purpose>
 </user-request>
 """
 
+
 def list_tables(reasoning: str) -> List[str]:
     """Returns a list of tables in the database.
 
@@ -208,6 +222,7 @@ def list_tables(reasoning: str) -> List[str]:
     except Exception as e:
         console.log(f"[red]Error listing tables: {str(e)}[/red]")
         return []
+
 
 def describe_table(reasoning: str, table_name: str) -> str:
     """Returns schema information about the specified table.
@@ -235,6 +250,7 @@ def describe_table(reasoning: str, table_name: str) -> str:
     except Exception as e:
         console.log(f"[red]Error describing table: {str(e)}[/red]")
         return ""
+
 
 def sample_table(reasoning: str, table_name: str, row_sample_size: int) -> str:
     """Returns a sample of rows from the specified table.
@@ -264,6 +280,7 @@ def sample_table(reasoning: str, table_name: str, row_sample_size: int) -> str:
         console.log(f"[red]Error sampling table: {str(e)}[/red]")
         return ""
 
+
 def run_test_sql_query(reasoning: str, sql_query: str) -> str:
     """Executes a test SQL query and returns results.
 
@@ -290,6 +307,7 @@ def run_test_sql_query(reasoning: str, sql_query: str) -> str:
     except Exception as e:
         console.log(f"[red]Error running test query: {str(e)}[/red]")
         return str(e)
+
 
 def run_final_sql_query(reasoning: str, sql_query: str) -> str:
     """Executes the final SQL query and returns results to user.
@@ -320,6 +338,7 @@ def run_final_sql_query(reasoning: str, sql_query: str) -> str:
         console.log(f"[red]Error running final query: {str(e)}[/red]")
         return str(e)
 
+
 def main():
     # Set up argument parser
     parser = argparse.ArgumentParser(description="DuckDB Agent using OpenAI API")
@@ -347,7 +366,7 @@ def main():
         )
         console.print("Then set it with: export OPENAI_API_KEY='your-api-key-here'")
         sys.exit(1)
-    
+
     openai.api_key = OPENAI_API_KEY
 
     # Set global DB_PATH for tool functions
@@ -377,22 +396,39 @@ def main():
 
         try:
             # Generate content with tool support
-            response = openai.ChatCompletion.create(
+            response = openai.chat.completions.create(
                 model="o3-mini",
-                max_tokens=1024,
                 messages=messages,
                 tools=tools,
-                tool_choice={"type": "function"},  # always force a tool call
-                temperature=0.0
+                tool_choice="required",
             )
 
-            if 'choices' in response and response.choices:
+            console.print("response: ", response)
+
+            if response.choices:
+                assert len(response.choices) == 1
                 message = response.choices[0].message
-                if message.get("function_call"):
-                    func_call = message["function_call"]
-                    func_name = func_call.get("name")
-                    func_args_str = func_call.get("arguments")
-                    console.print(f"[blue]Function Call:[/blue] {func_name}({func_args_str})")
+
+                console.print("message: ", message)
+                if message.function_call:
+                    func_call = message.function_call
+                    console.print("func_call: ", func_call)
+                elif message.tool_calls and len(message.tool_calls) > 0:
+                    # If a tool_calls list is present, use the first call and extract its function details.
+                    tool_call = message.tool_calls[0]
+                    func_call = tool_call.function
+                    console.print("func_call: ", func_call)
+                else:
+                    func_call = None
+                    console.print("no func_call")
+
+                if func_call:
+                    console.print("func_call: ", func_call)
+                    func_name = func_call.name
+                    func_args_str = func_call.arguments
+                    console.print(
+                        f"[blue]Function Call:[/blue] {func_name}({func_args_str})"
+                    )
                     try:
                         # Validate and parse arguments using the corresponding pydantic model
                         if func_name == "ListTablesArgs":
@@ -400,7 +436,10 @@ def main():
                             result = list_tables(reasoning=args_parsed.reasoning)
                         elif func_name == "DescribeTableArgs":
                             args_parsed = DescribeTableArgs.parse_raw(func_args_str)
-                            result = describe_table(reasoning=args_parsed.reasoning, table_name=args_parsed.table_name)
+                            result = describe_table(
+                                reasoning=args_parsed.reasoning,
+                                table_name=args_parsed.table_name,
+                            )
                         elif func_name == "SampleTableArgs":
                             args_parsed = SampleTableArgs.parse_raw(func_args_str)
                             result = sample_table(
@@ -410,43 +449,59 @@ def main():
                             )
                         elif func_name == "RunTestSQLQuery":
                             args_parsed = RunTestSQLQuery.parse_raw(func_args_str)
-                            result = run_test_sql_query(reasoning=args_parsed.reasoning, sql_query=args_parsed.sql_query)
+                            result = run_test_sql_query(
+                                reasoning=args_parsed.reasoning,
+                                sql_query=args_parsed.sql_query,
+                            )
                         elif func_name == "RunFinalSQLQuery":
                             args_parsed = RunFinalSQLQuery.parse_raw(func_args_str)
-                            result = run_final_sql_query(reasoning=args_parsed.reasoning, sql_query=args_parsed.sql_query)
+                            result = run_final_sql_query(
+                                reasoning=args_parsed.reasoning,
+                                sql_query=args_parsed.sql_query,
+                            )
                             console.print("\n[green]Final Results:[/green]")
                             console.print(result)
                             return
                         else:
                             raise Exception(f"Unknown tool call: {func_name}")
 
-                        console.print(f"[blue]Function Call Result:[/blue] {func_name}(...) -> {result}")
+                        console.print(
+                            f"[blue]Function Call Result:[/blue] {func_name}(...) -> {result}"
+                        )
 
                         # Append the function call result into our messages as a tool response
-                        messages.append({
-                            "role": "tool",
-                            "content": json.dumps({"result": str(result)}),
-                            "name": func_name
-                        })
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "content": json.dumps({"result": str(result)}),
+                                "name": func_name,
+                            }
+                        )
 
                         # Also append the original assistant message so that context is maintained
-                        messages.append(message)
+                        # messages.append(message)
 
                     except ValidationError as ve:
                         error_msg = f"Argument validation failed for {func_name}: {ve}"
                         console.print(f"[red]{error_msg}[/red]")
-                        messages.append({
-                            "role": "tool",
-                            "content": json.dumps({"error": error_msg}),
-                            "name": func_name
-                        })
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "content": json.dumps({"error": error_msg}),
+                                "name": func_name,
+                            }
+                        )
+                    except Exception as e:
+                        raise e
                 else:
                     # No function call in this response; simply append the message as is
+                    console.print("else: no func_call")
                     messages.append(message)
 
         except Exception as e:
             console.print(f"[red]Error in agent loop: {str(e)}[/red]")
             raise e
+
 
 if __name__ == "__main__":
     main()
