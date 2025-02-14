@@ -2,7 +2,7 @@
 
 # /// script
 # dependencies = [
-#   "anthropic>=0.18.0",
+#   "anthropic>=0.45.2",
 #   "rich>=13.7.0",
 # ]
 # ///
@@ -195,9 +195,7 @@ def main():
         console.print(
             "[red]Error: ANTHROPIC_API_KEY environment variable is not set[/red]"
         )
-        console.print(
-            "Please get your API key from your Anthropic dashboard"
-        )
+        console.print("Please get your API key from your Anthropic dashboard")
         console.print("Then set it with: export ANTHROPIC_API_KEY='your-api-key-here'")
         sys.exit(1)
 
@@ -220,7 +218,7 @@ def main():
             "Test queries before finalizing them. "
             "Only call run_final_sql_query when you're confident the query is perfect. "
             "Be thorough but efficient with tool usage. "
-            "Think step by step about what information you need."
+            "Think step by step about what information you need.",
         }
     ]
 
@@ -260,29 +258,29 @@ def main():
                             "properties": {
                                 "reasoning": {
                                     "type": "string",
-                                    "description": "Explanation for listing tables"
+                                    "description": "Explanation for listing tables",
                                 }
                             },
-                            "required": ["reasoning"]
-                        }
+                            "required": ["reasoning"],
+                        },
                     },
                     {
-                        "name": "describe_table", 
+                        "name": "describe_table",
                         "description": "Returns schema info for specified table",
                         "input_schema": {
                             "type": "object",
                             "properties": {
                                 "reasoning": {
                                     "type": "string",
-                                    "description": "Why we need to describe this table"
+                                    "description": "Why we need to describe this table",
                                 },
                                 "table_name": {
                                     "type": "string",
-                                    "description": "Name of table to describe"
-                                }
+                                    "description": "Name of table to describe",
+                                },
                             },
-                            "required": ["reasoning", "table_name"]
-                        }
+                            "required": ["reasoning", "table_name"],
+                        },
                     },
                     {
                         "name": "sample_table",
@@ -292,19 +290,19 @@ def main():
                             "properties": {
                                 "reasoning": {
                                     "type": "string",
-                                    "description": "Why we need to sample this table"
+                                    "description": "Why we need to sample this table",
                                 },
                                 "table_name": {
                                     "type": "string",
-                                    "description": "Name of table to sample"
+                                    "description": "Name of table to sample",
                                 },
                                 "row_sample_size": {
                                     "type": "integer",
-                                    "description": "Number of rows to sample aim for 3-5 rows"
-                                }
+                                    "description": "Number of rows to sample aim for 3-5 rows",
+                                },
                             },
-                            "required": ["reasoning", "table_name", "row_sample_size"]
-                        }
+                            "required": ["reasoning", "table_name", "row_sample_size"],
+                        },
                     },
                     {
                         "name": "run_test_sql_query",
@@ -314,15 +312,15 @@ def main():
                             "properties": {
                                 "reasoning": {
                                     "type": "string",
-                                    "description": "Why we're testing this specific query"
+                                    "description": "Why we're testing this specific query",
                                 },
                                 "sql_query": {
                                     "type": "string",
-                                    "description": "The SQL query to test"
-                                }
+                                    "description": "The SQL query to test",
+                                },
                             },
-                            "required": ["reasoning", "sql_query"]
-                        }
+                            "required": ["reasoning", "sql_query"],
+                        },
                     },
                     {
                         "name": "run_final_sql_query",
@@ -332,18 +330,18 @@ def main():
                             "properties": {
                                 "reasoning": {
                                     "type": "string",
-                                    "description": "Final explanation of how query satisfies user request"
+                                    "description": "Final explanation of how query satisfies user request",
                                 },
                                 "sql_query": {
                                     "type": "string",
-                                    "description": "The validated SQL query to run"
-                                }
+                                    "description": "The validated SQL query to run",
+                                },
                             },
-                            "required": ["reasoning", "sql_query"]
-                        }
-                    }
+                            "required": ["reasoning", "sql_query"],
+                        },
+                    },
                 ],
-                tool_choice={"type": "any"}  # Always force a tool call
+                tool_choice={"type": "any"},  # Always force a tool call
             )
 
             # Look for tool calls in the response
@@ -356,32 +354,34 @@ def main():
                 for tool_call in tool_calls:
                     func_name = tool_call.function.name
                     func_args = json.loads(tool_call.function.arguments)
-                    
-                    console.print(f"[blue]Tool Call:[/blue] {func_name}({json.dumps(func_args)})")
-                    
+
+                    console.print(
+                        f"[blue]Tool Call:[/blue] {func_name}({json.dumps(func_args)})"
+                    )
+
                     try:
                         if func_name == "list_tables":
                             result = list_tables(reasoning=func_args["reasoning"])
                         elif func_name == "describe_table":
                             result = describe_table(
                                 reasoning=func_args["reasoning"],
-                                table_name=func_args["table_name"]
+                                table_name=func_args["table_name"],
                             )
                         elif func_name == "sample_table":
                             result = sample_table(
                                 reasoning=func_args["reasoning"],
                                 table_name=func_args["table_name"],
-                                row_sample_size=func_args["row_sample_size"]
+                                row_sample_size=func_args["row_sample_size"],
                             )
                         elif func_name == "run_test_sql_query":
                             result = run_test_sql_query(
                                 reasoning=func_args["reasoning"],
-                                sql_query=func_args["sql_query"]
+                                sql_query=func_args["sql_query"],
                             )
                         elif func_name == "run_final_sql_query":
                             result = run_final_sql_query(
                                 reasoning=func_args["reasoning"],
-                                sql_query=func_args["sql_query"]
+                                sql_query=func_args["sql_query"],
                             )
                             console.print("\n[green]Final Results:[/green]")
                             console.print(result)
@@ -389,48 +389,55 @@ def main():
                         else:
                             raise Exception(f"Unknown tool call: {func_name}")
 
-                        console.print(f"[blue]Tool Call Result:[/blue] {func_name}(...) -> {result}")
+                        console.print(
+                            f"[blue]Tool Call Result:[/blue] {func_name}(...) -> {result}"
+                        )
 
                         # Add tool result to messages
-                        messages.append({
-                            "role": "assistant",
-                            "content": [
-                                {
-                                    "type": "tool_calls",
-                                    "tool_calls": [{
-                                        "id": tool_call.id,
-                                        "type": "function",
-                                        "function": {
-                                            "name": func_name,
-                                            "arguments": json.dumps(func_args)
-                                        }
-                                    }]
-                                }
-                            ]
-                        })
-                        
-                        messages.append({
-                            "role": "tool",
-                            "content": str(result),
-                            "tool_call_id": tool_call.id
-                        })
+                        messages.append(
+                            {
+                                "role": "assistant",
+                                "content": [
+                                    {
+                                        "type": "tool_calls",
+                                        "tool_calls": [
+                                            {
+                                                "id": tool_call.id,
+                                                "type": "function",
+                                                "function": {
+                                                    "name": func_name,
+                                                    "arguments": json.dumps(func_args),
+                                                },
+                                            }
+                                        ],
+                                    }
+                                ],
+                            }
+                        )
+
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "content": str(result),
+                                "tool_call_id": tool_call.id,
+                            }
+                        )
 
                     except Exception as e:
                         error_msg = f"Error executing {func_name}: {str(e)}"
                         console.print(f"[red]{error_msg}[/red]")
-                        messages.append({
-                            "role": "tool",
-                            "content": error_msg,
-                            "tool_call_id": tool_call.id
-                        })
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "content": error_msg,
+                                "tool_call_id": tool_call.id,
+                            }
+                        )
                         continue
 
             else:
                 # No tool calls, just append the response
-                messages.append({
-                    "role": "assistant", 
-                    "content": response.content
-                })
+                messages.append({"role": "assistant", "content": response.content})
 
         except Exception as e:
             console.print(f"[red]Error in agent loop: {str(e)}[/red]")
