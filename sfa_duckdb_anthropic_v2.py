@@ -356,7 +356,7 @@ def main():
 
             # Generate content with tool support
             response = client.messages.create(
-                model="claude-3-sonnet-20240229",
+                model="claude-3-5-sonnet-20241022",
                 max_tokens=1024,
                 messages=messages,
                 tools=[
