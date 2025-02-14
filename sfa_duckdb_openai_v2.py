@@ -394,12 +394,11 @@ def main():
                 f"Maximum compute loops reached: {compute_iterations}/{args.compute}"
             )
 
-        console.print("messages: ", messages)
-
         try:
             # Generate content with tool support
             response = openai.chat.completions.create(
-                model="o3-mini",
+                # model="o3-mini",
+                model="gpt-4o-mini",
                 messages=messages,
                 tools=tools,
                 tool_choice="required",
@@ -411,21 +410,16 @@ def main():
                 assert len(response.choices) == 1
                 message = response.choices[0].message
 
-                console.print("message: ", message)
                 if message.function_call:
                     func_call = message.function_call
-                    console.print("func_call: ", func_call)
                 elif message.tool_calls and len(message.tool_calls) > 0:
                     # If a tool_calls list is present, use the first call and extract its function details.
                     tool_call = message.tool_calls[0]
                     func_call = tool_call.function
-                    console.print("func_call: ", func_call)
                 else:
                     func_call = None
-                    console.print("no func_call")
 
                 if func_call:
-                    console.print("func_call: ", func_call)
                     func_name = func_call.name
                     func_args_str = func_call.arguments
 
