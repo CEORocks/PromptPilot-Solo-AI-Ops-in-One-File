@@ -188,6 +188,7 @@ AGENT_PROMPT = """<purpose>
     <instruction>Test queries before finalizing them.</instruction>
     <instruction>Only call run_final_sql_query when you're confident the query is perfect.</instruction>
     <instruction>Be thorough but efficient with tool usage.</instruction>
+    <instruction>If you find your run_test_sql_query tool call returns an error or won't satisfy the user request, try to fix the query or try a different query.</instruction>
     <instruction>Think step by step about what information you need.</instruction>
     <instruction>Be sure to specify every parameter for each tool call.</instruction>
     <instruction>Every tool call should have a reasoning parameter which gives you a place to explain why you are calling the tool.</instruction>
