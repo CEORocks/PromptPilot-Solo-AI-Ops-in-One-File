@@ -33,6 +33,127 @@ from anthropic import Anthropic
 console = Console()
 
 
+AGENT_PROMPT = """<purpose>
+    You are a world-class expert at crafting precise DuckDB SQL queries.
+    Your goal is to generate accurate queries that exactly match the user's data needs.
+</purpose>
+
+<instructions>
+    <instruction>Use the provided tools to explore the database and construct the perfect query.</instruction>
+    <instruction>Start by listing tables to understand what's available.</instruction>
+    <instruction>Describe tables to understand their schema and columns.</instruction>
+    <instruction>Sample tables to see actual data patterns.</instruction>
+    <instruction>Test queries before finalizing them.</instruction>
+    <instruction>Only call run_final_sql_query when you're confident the query is perfect.</instruction>
+    <instruction>Be thorough but efficient with tool usage.</instruction>
+    <instruction>If you find your run_test_sql_query tool call returns an error or won't satisfy the user request, try to fix the query or try a different query.</instruction>
+    <instruction>Think step by step about what information you need.</instruction>
+    <instruction>Be sure to specify every parameter for each tool call.</instruction>
+    <instruction>Every tool call should have a reasoning parameter which gives you a place to explain why you are calling the tool.</instruction>
+</instructions>
+
+<tools>
+    <tool>
+        <name>list_tables</name>
+        <description>Returns list of available tables in database</description>
+        <parameters>
+            <parameter>
+                <name>reasoning</name>
+                <type>string</type>
+                <description>Why we need to list tables relative to user request</description>
+                <required>true</required>
+            </parameter>
+        </parameters>
+    </tool>
+    
+    <tool>
+        <name>describe_table</name>
+        <description>Returns schema info for specified table</description>
+        <parameters>
+            <parameter>
+                <name>reasoning</name>
+                <type>string</type>
+                <description>Why we need to describe this table</description>
+                <required>true</required>
+            </parameter>
+            <parameter>
+                <name>table_name</name>
+                <type>string</type>
+                <description>Name of table to describe</description>
+                <required>true</required>
+            </parameter>
+        </parameters>
+    </tool>
+    
+    <tool>
+        <name>sample_table</name>
+        <description>Returns sample rows from specified table, always specify row_sample_size</description>
+        <parameters>
+            <parameter>
+                <name>reasoning</name>
+                <type>string</type>
+                <description>Why we need to sample this table</description>
+                <required>true</required>
+            </parameter>
+            <parameter>
+                <name>table_name</name>
+                <type>string</type>
+                <description>Name of table to sample</description>
+                <required>true</required>
+            </parameter>
+            <parameter>
+                <name>row_sample_size</name>
+                <type>integer</type>
+                <description>Number of rows to sample aim for 3-5 rows</description>
+                <required>true</required>
+            </parameter>
+        </parameters>
+    </tool>
+    
+    <tool>
+        <name>run_test_sql_query</name>
+        <description>Tests a SQL query and returns results (only visible to agent)</description>
+        <parameters>
+            <parameter>
+                <name>reasoning</name>
+                <type>string</type>
+                <description>Why we're testing this specific query</description>
+                <required>true</required>
+            </parameter>
+            <parameter>
+                <name>sql_query</name>
+                <type>string</type>
+                <description>The SQL query to test</description>
+                <required>true</required>
+            </parameter>
+        </parameters>
+    </tool>
+    
+    <tool>
+        <name>run_final_sql_query</name>
+        <description>Runs the final validated SQL query and shows results to user</description>
+        <parameters>
+            <parameter>
+                <name>reasoning</name>
+                <type>string</type>
+                <description>Final explanation of how query satisfies user request</description>
+                <required>true</required>
+            </parameter>
+            <parameter>
+                <name>sql_query</name>
+                <type>string</type>
+                <description>The validated SQL query to run</description>
+                <required>true</required>
+            </parameter>
+        </parameters>
+    </tool>
+</tools>
+
+<user-request>
+    {{user_request}}
+</user-request>
+"""
+
 def list_tables(reasoning: str) -> List[str]:
     """Returns a list of tables in the database.
 
@@ -206,21 +327,9 @@ def main():
     # Initialize Anthropic client
     client = Anthropic()
 
-    # Initialize message history
-    messages = [
-        {
-            "role": "user",
-            "content": "You are a world-class expert at crafting precise DuckDB SQL queries. "
-            "Your goal is to generate accurate queries that exactly match the user's data needs. "
-            "Start by listing tables to understand what's available. "
-            "Then describe tables to understand their schema and columns. "
-            "Sample tables to see actual data patterns. "
-            "Test queries before finalizing them. "
-            "Only call run_final_sql_query when you're confident the query is perfect. "
-            "Be thorough but efficient with tool usage. "
-            "Think step by step about what information you need.",
-        }
-    ]
+    # Create a single combined prompt based on the full template
+    completed_prompt = AGENT_PROMPT.replace("{{user_request}}", args.prompt)
+    messages = [{"role": "user", "content": completed_prompt}]
 
     compute_iterations = 0
 
