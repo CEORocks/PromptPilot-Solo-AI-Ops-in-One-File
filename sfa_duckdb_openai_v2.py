@@ -428,6 +428,20 @@ def main():
                     console.print("func_call: ", func_call)
                     func_name = func_call.name
                     func_args_str = func_call.arguments
+
+                    messages.append(
+                        {
+                            "role": "assistant",
+                            "tool_calls": [
+                                {
+                                    "id": tool_call.id,
+                                    "type": "function",
+                                    "function": func_call,
+                                }
+                            ],
+                        }
+                    )
+
                     console.print(
                         f"[blue]Function Call:[/blue] {func_name}({func_args_str})"
                     )
@@ -481,19 +495,6 @@ def main():
                             f"[blue]Function Call Result:[/blue] {func_name}(...) -> {result}"
                         )
 
-                        messages.append(
-                            {
-                                "role": "assistant",
-                                "tool_calls": [
-                                    {
-                                        "id": tool_call.id,
-                                        "type": "function",
-                                        "function": func_call,
-                                    }
-                                ],
-                            }
-                        )
-
                         # Append the function call result into our messages as a tool response
                         messages.append(
                             {
@@ -503,8 +504,8 @@ def main():
                             }
                         )
 
-                    except ValidationError as ve:
-                        error_msg = f"Argument validation failed for {func_name}: {ve}"
+                    except Exception as e:
+                        error_msg = f"Argument validation failed for {func_name}: {e}"
                         console.print(f"[red]{error_msg}[/red]")
                         messages.append(
                             {
@@ -513,12 +514,11 @@ def main():
                                 "content": json.dumps({"error": error_msg}),
                             }
                         )
-                    except Exception as e:
-                        raise e
+                        continue
                 else:
-                    # No function call in this response; simply append the message as is
-                    console.print("else: no func_call")
-                    messages.append(message)
+                    raise Exception(
+                        "No function call in this response - should never happen"
+                    )
 
         except Exception as e:
             console.print(f"[red]Error in agent loop: {str(e)}[/red]")
