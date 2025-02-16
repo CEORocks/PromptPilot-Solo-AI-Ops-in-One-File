@@ -4,6 +4,8 @@
 # ]
 # ///
 
+# Interesting idea here - we can store SFAs in gist - curl them then run them locally. Food for thought.
+
 import requests
 
 

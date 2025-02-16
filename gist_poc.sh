@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# Interesting idea here - we can store SFAs in gist - curl them then run them locally. Food for thought.
+
 # 1. The raw link to your specific file in the Gist.
 #    Note: The exact raw link may change if the Gist is updated, so check the "Raw" button
 #    in your Gist to make sure you have the correct URL.

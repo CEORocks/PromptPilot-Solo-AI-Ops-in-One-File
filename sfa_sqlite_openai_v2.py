@@ -11,6 +11,7 @@ import os
 import sys
 import json
 import argparse
+import sqlite3
 import subprocess
 from typing import List
 from rich.console import Console
@@ -66,7 +67,7 @@ tools = [
 ]
 
 AGENT_PROMPT = """<purpose>
-    You are a world-class expert at crafting precise DuckDB SQL queries.
+    You are a world-class expert at crafting precise SQLite SQL queries.
     Your goal is to generate accurate queries that exactly match the user's data needs.
 </purpose>
 
@@ -199,14 +200,13 @@ def list_tables(reasoning: str) -> List[str]:
         List of table names as strings
     """
     try:
-        result = subprocess.run(
-            f'duckdb {DB_PATH} -c ".tables"',
-            shell=True,
-            text=True,
-            capture_output=True,
-        )
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")
+        tables = [row[0] for row in cursor.fetchall()]
+        conn.close()
         console.log(f"[blue]List Tables Tool[/blue] - Reasoning: {reasoning}")
-        return result.stdout.strip().split("\n")
+        return tables
     except Exception as e:
         console.log(f"[red]Error listing tables: {str(e)}[/red]")
         return []
@@ -225,16 +225,14 @@ def describe_table(reasoning: str, table_name: str) -> str:
         String containing table schema information
     """
     try:
-        result = subprocess.run(
-            f'duckdb {DB_PATH} -c "DESCRIBE {table_name};"',
-            shell=True,
-            text=True,
-            capture_output=True,
-        )
-        console.log(
-            f"[blue]Describe Table Tool[/blue] - Table: {table_name} - Reasoning: {reasoning}"
-        )
-        return result.stdout
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(f"PRAGMA table_info('{table_name}');")
+        rows = cursor.fetchall()
+        conn.close()
+        output = "\n".join([str(row) for row in rows])
+        console.log(f"[blue]Describe Table Tool[/blue] - Table: {table_name} - Reasoning: {reasoning}")
+        return output
     except Exception as e:
         console.log(f"[red]Error describing table: {str(e)}[/red]")
         return ""
@@ -254,16 +252,16 @@ def sample_table(reasoning: str, table_name: str, row_sample_size: int) -> str:
         String containing sample rows in readable format
     """
     try:
-        result = subprocess.run(
-            f'duckdb {DB_PATH} -c "SELECT * FROM {table_name} LIMIT {row_sample_size};"',
-            shell=True,
-            text=True,
-            capture_output=True,
-        )
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT * FROM {table_name} LIMIT {row_sample_size};")
+        rows = cursor.fetchall()
+        conn.close()
+        output = "\n".join([str(row) for row in rows])
         console.log(
             f"[blue]Sample Table Tool[/blue] - Table: {table_name} - Rows: {row_sample_size} - Reasoning: {reasoning}"
         )
-        return result.stdout
+        return output
     except Exception as e:
         console.log(f"[red]Error sampling table: {str(e)}[/red]")
         return ""
@@ -283,15 +281,16 @@ def run_test_sql_query(reasoning: str, sql_query: str) -> str:
         Query results as a string
     """
     try:
-        result = subprocess.run(
-            f'duckdb {DB_PATH} -c "{sql_query}"',
-            shell=True,
-            text=True,
-            capture_output=True,
-        )
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(sql_query)
+        rows = cursor.fetchall()
+        conn.commit()
+        conn.close()
+        output = "\n".join([str(row) for row in rows])
         console.log(f"[blue]Test Query Tool[/blue] - Reasoning: {reasoning}")
         console.log(f"[dim]Query: {sql_query}[/dim]")
-        return result.stdout
+        return output
     except Exception as e:
         console.log(f"[red]Error running test query: {str(e)}[/red]")
         return str(e)
@@ -310,18 +309,19 @@ def run_final_sql_query(reasoning: str, sql_query: str) -> str:
         Query results as a string
     """
     try:
-        result = subprocess.run(
-            f'duckdb {DB_PATH} -c "{sql_query}"',
-            shell=True,
-            text=True,
-            capture_output=True,
-        )
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(sql_query)
+        rows = cursor.fetchall()
+        conn.commit()
+        conn.close()
+        output = "\n".join([str(row) for row in rows])
         console.log(
             Panel(
                 f"[green]Final Query Tool[/green]\nReasoning: {reasoning}\nQuery: {sql_query}"
             )
         )
-        return result.stdout
+        return output
     except Exception as e:
         console.log(f"[red]Error running final query: {str(e)}[/red]")
         return str(e)
@@ -329,9 +329,9 @@ def run_final_sql_query(reasoning: str, sql_query: str) -> str:
 
 def main():
     # Set up argument parser
-    parser = argparse.ArgumentParser(description="DuckDB Agent using OpenAI API")
+    parser = argparse.ArgumentParser(description="SQLite Agent using OpenAI API")
     parser.add_argument(
-        "-d", "--db", required=True, help="Path to DuckDB database file"
+        "-d", "--db", required=True, help="Path to SQLite database file"
     )
     parser.add_argument("-p", "--prompt", required=True, help="The user's request")
     parser.add_argument(

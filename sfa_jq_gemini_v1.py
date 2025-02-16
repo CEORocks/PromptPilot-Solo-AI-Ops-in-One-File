@@ -8,10 +8,10 @@
 /// Example Usage
 
 # generates jq command and executes it
-uv run sfa_jq_gemini_v1.py --exe "Filter scores above 80 from data/mock.json and save to high_scores.json"
+uv run sfa_jq_gemini_v1.py --exe "Filter scores above 80 from data/analytics.json and save to high_scores.json"
 
 # generates jq command only
-uv run sfa_jq_gemini_v1.py "Filter scores above 80 from data/mock.json and save to high_scores.json"
+uv run sfa_jq_gemini_v1.py "Filter scores above 80 from data/analytics.json and save to high_scores.json"
 
 ///
 """

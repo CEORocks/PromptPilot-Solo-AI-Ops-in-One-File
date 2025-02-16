@@ -10,10 +10,10 @@
 /// Example Usage
 
 # generates and executes DuckDB command (default)
-uv run sfa_duckdb_gemini_v1.py --db ./data/mock.db "Filter employees with salary above 50000 and export to high_salary_employees.csv"
+uv run sfa_duckdb_gemini_v1.py --db ./data/analytics.db "Filter employees with salary above 50000 and export to high_salary_employees.csv"
 
 # generates DuckDB command only without executing
-uv run sfa_duckdb_gemini_v1.py --db ./data/mock.db --no-exe "Select name and department from employees table and save to employees.json"
+uv run sfa_duckdb_gemini_v1.py --db ./data/analytics.db --no-exe "Select name and department from employees table and save to employees.json"
 
 ///
 """
