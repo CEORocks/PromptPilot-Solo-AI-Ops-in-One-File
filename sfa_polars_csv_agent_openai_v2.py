@@ -271,30 +271,33 @@ def run_test_polars_code(reasoning: str, polars_python_code: str, csv_path: str)
         result = run_test_polars_code(
             "Testing average age calculation",
             '''
-            result = df.select(pl.col("age").mean()).collect()
-            print(result)
+            # Calculate average age using lazy evaluation
+            result = df.select(pl.col("age").mean().alias("avg_age")).collect()
+            print("Average age:", float(result[0, "avg_age"]))
             ''',
             "data.csv"
         )
     """
     try:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-            script = '''
-import polars as pl
+            # Ensure code is properly indented
+            indented_code = "\n".join("    " + line if line.strip() else line 
+                                    for line in polars_python_code.splitlines())
+            
+            script = '''import polars as pl
 import sys
 
+# Read the CSV file using lazy evaluation
 df = pl.scan_csv("{csv_path}")
 
 try:
-    # Execute the user's code
 {code}
     
-    # If the code doesn't explicitly print or assign results, try to collect and display
+    # If no result was explicitly printed, try to collect and display
     if 'result' not in locals():
         if any(var for var in locals().values() if isinstance(var, (pl.LazyFrame, pl.DataFrame))):
-            # Find the last DataFrame/LazyFrame in locals
             result = next(var for var in reversed(list(locals().values())) 
-                        if isinstance(var, (pl.LazyFrame, pl.DataFrame)))
+                      if isinstance(var, (pl.LazyFrame, pl.DataFrame)))
             if isinstance(result, pl.LazyFrame):
                 result = result.collect()
         else:
@@ -305,12 +308,11 @@ try:
         print(result.select(pl.all()).write_csv(None))
     else:
         print(str(result))
-    
 except Exception as e:
     print("Error: " + str(e), file=sys.stderr)
     sys.exit(1)
 '''
-            script_content = script.format(csv_path=csv_path, code=polars_python_code)
+            script_content = script.format(csv_path=csv_path, code=indented_code)
             f.write(script_content)
             temp_file = f.name
 
@@ -349,39 +351,41 @@ def run_final_polars_code(reasoning: str, csv_path: str, polars_python_code: str
             "Calculating average user age",
             "data.csv",
             '''
-            result = df.select(pl.col("age").mean()).collect()
-            print("Average age:", float(result[0,0]))
+            # Calculate average age using lazy evaluation
+            result = df.select(pl.col("age").mean().alias("avg_age")).collect()
+            print("Average age:", float(result[0, "avg_age"]))
             ''',
             "results.csv"
         )
     """
     try:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-            f.write(f"""
-import polars as pl
+            # Ensure code is properly indented
+            indented_code = "\n".join("    " + line if line.strip() else line 
+                                    for line in polars_python_code.splitlines())
+            
+            script = '''import polars as pl
 import sys
-import json
 
 try:
-    # Read the CSV file
+    # Read the CSV file using lazy evaluation
     df = pl.scan_csv("{csv_path}")
     
     # Execute the user's code
-    {polars_python_code}
+{code}
     
-    # If the code doesn't explicitly print or assign results, try to collect and display
+    # If no result was explicitly printed, try to collect and display
     if 'result' not in locals():
         if any(var for var in locals().values() if isinstance(var, (pl.LazyFrame, pl.DataFrame))):
-            # Find the last DataFrame/LazyFrame in locals
             result = next(var for var in reversed(list(locals().values())) 
-                        if isinstance(var, (pl.LazyFrame, pl.DataFrame)))
+                      if isinstance(var, (pl.LazyFrame, pl.DataFrame)))
             if isinstance(result, pl.LazyFrame):
                 result = result.collect()
         else:
             result = df.collect()
     
     # Handle output file if specified
-    output_file = {repr(output_file) if output_file else 'None'}
+    output_file = {output_file}
     if output_file:
         if isinstance(result, pl.DataFrame):
             if output_file.endswith('.csv'):
@@ -392,19 +396,25 @@ try:
                 result.write_csv(output_file + '.csv')  # Default to CSV
         else:
             # For non-DataFrame results, create a single column DataFrame
-            pl.DataFrame({'result': [str(result)]}).write_csv(output_file)
-        print(f"Results written to {output_file}")
+            pl.DataFrame({{"result": [str(result)]}}).write_csv(output_file)
+        print("Results written to " + str(output_file))
     
     # Convert result to string for display
     if isinstance(result, pl.DataFrame):
-        print(result.select(pl.all()).collect().write_csv(None))
+        print(result.select(pl.all()).write_csv(None))
     else:
         print(str(result))
-    
 except Exception as e:
-    print(json.dumps({"error": str(e)}), file=sys.stderr)
+    print("Error: " + str(e), file=sys.stderr)
     sys.exit(1)
-""")
+'''
+            script_content = script.format(
+                csv_path=csv_path,
+                code=indented_code,
+                output_file=repr(output_file) if output_file else 'None'
+            )
+            f.write(script_content)
+            temp_file = f.name
             temp_file = f.name
 
         result = subprocess.run(['uv', 'run', '--with', 'polars', temp_file],
