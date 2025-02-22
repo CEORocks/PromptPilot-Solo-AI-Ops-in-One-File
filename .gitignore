@@ -15,3 +15,5 @@ specs/
 patterns.log
 
 paic-patterns.log
+
+.env
