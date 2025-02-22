@@ -279,8 +279,7 @@ def run_test_polars_code(reasoning: str, polars_python_code: str, csv_path: str)
     """
     try:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-            script = '''
-import polars as pl
+            script = '''import polars as pl
 import sys
 
 try:
@@ -288,7 +287,7 @@ try:
     df = pl.scan_csv("{csv_path}")
     
     # Execute the user's code
-    {code}
+{code}
     
     # If the code doesn't explicitly print or assign results, try to collect and display
     if 'result' not in locals():
