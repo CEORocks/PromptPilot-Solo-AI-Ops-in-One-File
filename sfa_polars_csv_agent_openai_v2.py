@@ -403,6 +403,7 @@ def main():
                     messages.append(
                         {
                             "role": "assistant",
+                            "content": None,
                             "tool_calls": [
                                 {
                                     "id": tool_call.id,
