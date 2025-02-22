@@ -198,6 +198,7 @@ def list_columns(reasoning: str, csv_path: str) -> List[str]:
     """Returns a list of columns in the CSV file.
 
     The agent uses this to discover available columns and make informed decisions.
+    This is typically the first tool called to understand the data structure.
 
     Args:
         reasoning: Explanation of why we're listing columns relative to user request
@@ -205,6 +206,10 @@ def list_columns(reasoning: str, csv_path: str) -> List[str]:
 
     Returns:
         List of column names as strings
+
+    Example:
+        columns = list_columns("Need to find age-related columns", "data.csv")
+        # Returns: ['user_id', 'age', 'name', ...]
     """
     try:
         df = pl.scan_csv(csv_path).collect()
@@ -220,6 +225,7 @@ def sample_csv(reasoning: str, csv_path: str, row_count: int) -> str:
     """Returns a sample of rows from the CSV file.
 
     The agent uses this to understand actual data content and patterns.
+    This helps validate data types and identify any potential data quality issues.
 
     Args:
         reasoning: Explanation of why we're sampling this data
@@ -228,6 +234,10 @@ def sample_csv(reasoning: str, csv_path: str, row_count: int) -> str:
 
     Returns:
         String containing sample rows in readable format
+
+    Example:
+        sample = sample_csv("Check age values and formats", "data.csv", 3)
+        # Returns formatted string with 3 rows of data
     """
     try:
         df = pl.scan_csv(csv_path).limit(row_count).collect()
@@ -246,14 +256,25 @@ def run_test_polars_code(reasoning: str, polars_python_code: str, csv_path: str)
 
     The agent uses this to validate code before finalizing it.
     Results are only shown to the agent, not the user.
+    The code should use Polars' lazy evaluation (LazyFrame) for better performance.
 
     Args:
         reasoning: Explanation of why we're running this test code
-        polars_python_code: The Polars Python code to test
+        polars_python_code: The Polars Python code to test. Should use pl.scan_csv() for lazy evaluation.
         csv_path: Path to the CSV file
 
     Returns:
         Code execution results as a string
+
+    Example:
+        result = run_test_polars_code(
+            "Testing average age calculation",
+            '''
+            result = df.select(pl.col("age").mean()).collect()
+            print(result)
+            ''',
+            "data.csv"
+        )
     """
     try:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
@@ -312,15 +333,28 @@ def run_final_polars_code(reasoning: str, csv_path: str, polars_python_code: str
     """Executes the final Polars code and returns results to user.
 
     This is the last tool call the agent should make after validating the code.
+    The code should be fully tested and ready for production use.
+    Results will be displayed to the user and optionally saved to a file.
 
     Args:
         reasoning: Final explanation of how this code satisfies user request
         csv_path: Path to the CSV file
-        polars_python_code: The validated Polars Python code to run
-        output_file: Optional path to save results to
+        polars_python_code: The validated Polars Python code to run. Should use pl.scan_csv() for lazy evaluation.
+        output_file: Optional path to save results to. Use .csv or .json extension.
 
     Returns:
         Code execution results as a string
+
+    Example:
+        result = run_final_polars_code(
+            "Calculating average user age",
+            "data.csv",
+            '''
+            result = df.select(pl.col("age").mean()).collect()
+            print(f"Average age: {result[0,0]}")
+            ''',
+            "results.csv"
+        )
     """
     try:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
