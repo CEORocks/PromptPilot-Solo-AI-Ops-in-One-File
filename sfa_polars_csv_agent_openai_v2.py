@@ -242,7 +242,7 @@ def sample_csv(reasoning: str, csv_path: str, row_count: int) -> str:
     try:
         df = pl.scan_csv(csv_path).limit(row_count).collect()
         # Convert to string representation
-        output = df.select(pl.all()).collect().write_csv(None)
+        output = df.select(pl.all()).write_csv(None)
         console.log(
             f"[blue]Sample CSV Tool[/blue] - Rows: {row_count} - Reasoning: {reasoning}"
         )
