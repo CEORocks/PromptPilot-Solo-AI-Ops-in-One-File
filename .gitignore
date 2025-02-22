@@ -8,7 +8,10 @@ data/*
 !data/analytics.json
 !data/analytics.db
 !data/analytics.sqlite
+!data/analytics.csv
 
 specs/
 
 patterns.log
+
+paic-patterns.log

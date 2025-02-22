@@ -1,0 +1,31 @@
+id,name,age,city,score,is_active,status,created_at
+94efbf8b-4c95-4feb-9eda-900192276be7,Fiona,33,Singapore,95.48,True,active,2024-04-30
+efcbb1f5-ffaf-4b40-a44b-cd67f6508eec,Alice,46,Paris,37.81,False,active,2023-10-31
+9c2378d3-f46d-4f19-8e9e-b9053e6e57ea,Charlie,54,Tokyo,86.24,False,archived,2023-11-15
+12a6dc88-1bd5-4a20-b729-e7a70918a60b,Charlie,31,Tokyo,61.24,True,pending,2024-03-26
+dc1cf50e-c3c2-4843-8137-131834f7b00a,Jane,26,London,22.61,True,inactive,2024-11-04
+db0ac268-3666-4a03-a284-e35380ae8c84,Jane,34,New York,3.1,True,archived,2024-01-29
+24ab09dd-163a-4faf-8e06-d3fb6418dec5,Alice,64,Tokyo,6.17,True,pending,2024-03-08
+27f8624d-c41a-4569-bbbb-1348b94fa0fd,Jane,34,Paris,43.44,True,active,2023-04-19
+1666fe7c-a2b1-44d5-abba-293c4e0f9b23,Charlie,58,Sydney,85.02,True,active,2024-09-09
+66036da1-7704-4ca6-9ec2-1e6d560db610,Alice,61,Singapore,93.69,True,archived,2024-05-06
+04fa9318-9e6d-4029-be2d-9bc7ecf37f3f,John,24,Tokyo,14.59,True,inactive,2023-08-17
+4586fbe1-acf9-4bfa-8237-ab697cdc69ed,Diana,43,Sydney,60.84,True,archived,2023-11-06
+20b827b3-f183-44db-9f4f-f30b361c8a83,Diana,63,Singapore,96.18,False,inactive,2024-08-02
+779dbbe0-b509-4332-98ee-d89887f48cec,Bob,47,Toronto,37.85,False,active,2025-01-25
+8612b8d7-4524-4575-a782-a01c4a0c88a3,Bob,25,Berlin,88.28,False,pending,2025-01-16
+ad992026-c339-40eb-a669-f16983d226ca,Diana,29,Berlin,84.17,False,active,2023-07-26
+b3ef272f-3fc9-4422-88db-ed39858f1f68,John,20,New York,78.33,True,archived,2023-04-16
+2a0ace4c-ee9e-4b6b-9005-897210109cca,Bob,49,Toronto,56.91,False,active,2023-07-10
+3674700e-a83f-4450-97c8-04f80f2d2e89,Charlie,30,Sydney,80.83,False,active,2024-10-22
+a17712d7-10f1-48e3-b1fd-8c65afb0442a,Jane,40,Toronto,35.85,False,inactive,2024-02-03
+3b1e3e89-9ccb-46cf-9954-cb0903e8e02d,Diana,48,Singapore,37.58,True,inactive,2023-06-13
+a4461690-a009-48c1-96d2-ed89dd1907a7,Diana,21,Tokyo,32.35,False,pending,2024-06-03
+7157129c-0b3d-4040-8609-65afe4322ed2,Alice,65,New York,40.59,False,inactive,2024-02-19
+dc3c472f-d16b-47e2-95c4-61c461e2b228,Diana,25,Singapore,48.32,False,inactive,2024-10-03
+34e6e614-f376-4c1c-b3b5-f2926987115f,Bob,30,Tokyo,72.08,False,inactive,2024-10-09
+2e4aded0-53aa-4668-b3b1-90f4747aa295,Fiona,20,Tokyo,88.64,True,inactive,2023-04-08
+2f65400e-3447-4944-9db3-af09bd4d57db,John,34,Toronto,54.75,True,archived,2024-02-26
+a667e148-4c64-4f5a-b23a-e00856feed8d,John,27,Singapore,33.5,True,archived,2023-02-26
+517c9c76-5c3e-497e-bd78-343ebd001668,Eric,23,Sydney,78.33,True,inactive,2024-08-11
+78a7f34f-7c0b-4e16-b57e-3829726569a7,Jane,32,Berlin,49.09,False,archived,2023-10-19
