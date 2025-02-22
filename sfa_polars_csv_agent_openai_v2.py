@@ -279,13 +279,13 @@ def run_test_polars_code(reasoning: str, polars_python_code: str, csv_path: str)
     """
     try:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-            script = '''import polars as pl
+            script = '''
+import polars as pl
 import sys
 
+df = pl.scan_csv("{csv_path}")
+
 try:
-    # Read the CSV file
-    df = pl.scan_csv("{csv_path}")
-    
     # Execute the user's code
 {code}
     
