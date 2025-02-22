@@ -77,6 +77,10 @@ AGENT_PROMPT = """<purpose>
     <instruction>Be sure to specify every parameter for each tool call.</instruction>
     <instruction>Every tool call should have a reasoning parameter which gives you a place to explain why you are calling the tool.</instruction>
     <instruction>When writing Polars code, always use proper error handling and data validation.</instruction>
+    <instruction>For data transformations, prefer using Polars' lazy evaluation (LazyFrame) for better performance on large datasets.</instruction>
+    <instruction>When using run_test_polars_code, make sure to test edge cases and validate data types.</instruction>
+    <instruction>If saving results to a file, specify the output_file parameter in run_final_polars_code with either .csv or .json extension.</instruction>
+    <instruction>Your code should handle both LazyFrame and DataFrame results appropriately.</instruction>
 </instructions>
 
 <tools>
@@ -206,6 +210,7 @@ def list_columns(reasoning: str, csv_path: str) -> List[str]:
         df = pl.scan_csv(csv_path).collect()
         columns = df.columns
         console.log(f"[blue]List Columns Tool[/blue] - Reasoning: {reasoning}")
+        console.log(f"[dim]Columns: {columns}[/dim]")
         return columns
     except Exception as e:
         console.log(f"[red]Error listing columns: {str(e)}[/red]")
@@ -230,6 +235,7 @@ def sample_csv(reasoning: str, csv_path: str, row_count: int) -> str:
         console.log(
             f"[blue]Sample CSV Tool[/blue] - Rows: {row_count} - Reasoning: {reasoning}"
         )
+        console.log(f"[dim]Sample:\n{output}[/dim]")
         return output
     except Exception as e:
         console.log(f"[red]Error sampling CSV: {str(e)}[/red]")
@@ -435,6 +441,7 @@ def main():
             console.print(
                 "[yellow]Warning: Reached maximum compute loops without final code[/yellow]"
             )
+            console.print("[yellow]Please try adjusting your prompt or increasing the compute limit.[/yellow]")
             raise Exception(
                 f"Maximum compute loops reached: {compute_iterations}/{args.compute}"
             )
