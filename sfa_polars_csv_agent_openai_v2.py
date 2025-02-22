@@ -254,12 +254,36 @@ def run_test_polars_code(reasoning: str, polars_python_code: str, csv_path: str)
             f.write(f"""
 import polars as pl
 import sys
+import json
 
 try:
-    csv_path = "{csv_path}"
+    # Read the CSV file
+    df = pl.scan_csv("{csv_path}")
+    
+    # Execute the user's code
     {polars_python_code}
+    
+    # If the code doesn't explicitly print or assign results, try to collect and display
+    if 'result' not in locals():
+        if any(var for var in locals().values() if isinstance(var, (pl.LazyFrame, pl.DataFrame))):
+            # Find the last DataFrame/LazyFrame in locals
+            result = next(var for var in reversed(list(locals().values())) 
+                        if isinstance(var, (pl.LazyFrame, pl.DataFrame)))
+            if isinstance(result, pl.LazyFrame):
+                result = result.collect()
+        else:
+            result = df.collect()
+    
+    # Convert result to string if it's a DataFrame
+    if isinstance(result, pl.DataFrame):
+        output = result.to_string()
+    else:
+        output = str(result)
+        
+    print(output)
+    
 except Exception as e:
-    print(f"Error: {{str(e)}}", file=sys.stderr)
+    print(json.dumps({{"error": str(e)}}), file=sys.stderr)
     sys.exit(1)
 """)
             temp_file = f.name
@@ -297,12 +321,51 @@ def run_final_polars_code(reasoning: str, csv_path: str, polars_python_code: str
             f.write(f"""
 import polars as pl
 import sys
+import json
 
 try:
-    csv_path = "{csv_path}"
+    # Read the CSV file
+    df = pl.scan_csv("{csv_path}")
+    
+    # Execute the user's code
     {polars_python_code}
+    
+    # If the code doesn't explicitly print or assign results, try to collect and display
+    if 'result' not in locals():
+        if any(var for var in locals().values() if isinstance(var, (pl.LazyFrame, pl.DataFrame))):
+            # Find the last DataFrame/LazyFrame in locals
+            result = next(var for var in reversed(list(locals().values())) 
+                        if isinstance(var, (pl.LazyFrame, pl.DataFrame)))
+            if isinstance(result, pl.LazyFrame):
+                result = result.collect()
+        else:
+            result = df.collect()
+    
+    # Handle output file if specified
+    output_file = {repr(output_file) if output_file else 'None'}
+    if output_file:
+        if isinstance(result, pl.DataFrame):
+            if output_file.endswith('.csv'):
+                result.write_csv(output_file)
+            elif output_file.endswith('.json'):
+                result.write_json(output_file)
+            else:
+                result.write_csv(output_file + '.csv')  # Default to CSV
+        else:
+            # For non-DataFrame results, create a single column DataFrame
+            pl.DataFrame({{'result': [str(result)]}).write_csv(output_file)
+        print(f"Results written to {{output_file}}")
+    
+    # Convert result to string for display
+    if isinstance(result, pl.DataFrame):
+        output = result.to_string()
+    else:
+        output = str(result)
+        
+    print(output)
+    
 except Exception as e:
-    print(f"Error: {{str(e)}}", file=sys.stderr)
+    print(json.dumps({{"error": str(e)}}), file=sys.stderr)
     sys.exit(1)
 """)
             temp_file = f.name
@@ -356,7 +419,8 @@ def main():
 
     # Create a single combined prompt based on the full template
     completed_prompt = AGENT_PROMPT.replace("{{user_request}}", args.prompt).replace("{{csv_file_path}}", args.input)
-    messages = [{"role": "user", "content": completed_prompt}]
+    # Initialize messages with proper typing for OpenAI chat
+    messages: List[dict] = [{"role": "user", "content": completed_prompt}]
 
     compute_iterations = 0
 
