@@ -241,7 +241,8 @@ def sample_csv(reasoning: str, csv_path: str, row_count: int) -> str:
     """
     try:
         df = pl.scan_csv(csv_path).limit(row_count).collect()
-        output = df.to_string()
+        # Convert to string representation
+        output = df.select(pl.all()).collect().write_csv(None)
         console.log(
             f"[blue]Sample CSV Tool[/blue] - Rows: {row_count} - Reasoning: {reasoning}"
         )
@@ -301,13 +302,11 @@ try:
         else:
             result = df.collect()
     
-    # Convert result to string if it's a DataFrame
+    # Convert result to string for display
     if isinstance(result, pl.DataFrame):
-        output = result.to_string()
+        print(result.select(pl.all()).collect().write_csv(None))
     else:
-        output = str(result)
-        
-    print(output)
+        print(str(result))
     
 except Exception as e:
     print(json.dumps({"error": str(e)}), file=sys.stderr)
@@ -398,11 +397,9 @@ try:
     
     # Convert result to string for display
     if isinstance(result, pl.DataFrame):
-        output = result.to_string()
+        print(result.select(pl.all()).collect().write_csv(None))
     else:
-        output = str(result)
-        
-    print(output)
+        print(str(result))
     
 except Exception as e:
     print(json.dumps({"error": str(e)}), file=sys.stderr)
