@@ -279,17 +279,16 @@ def run_test_polars_code(reasoning: str, polars_python_code: str, csv_path: str)
     """
     try:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-            f.write(f"""
+            script = '''
 import polars as pl
 import sys
-import json
 
 try:
     # Read the CSV file
     df = pl.scan_csv("{csv_path}")
     
     # Execute the user's code
-    {polars_python_code}
+    {code}
     
     # If the code doesn't explicitly print or assign results, try to collect and display
     if 'result' not in locals():
@@ -304,14 +303,16 @@ try:
     
     # Convert result to string for display
     if isinstance(result, pl.DataFrame):
-        print(result.select(pl.all()).collect().write_csv(None))
+        print(result.select(pl.all()).write_csv(None))
     else:
         print(str(result))
     
 except Exception as e:
-    print(json.dumps({"error": str(e)}), file=sys.stderr)
+    print("Error: " + str(e), file=sys.stderr)
     sys.exit(1)
-""")
+'''
+            script_content = script.format(csv_path=csv_path, code=polars_python_code)
+            f.write(script_content)
             temp_file = f.name
 
         result = subprocess.run(['uv', 'run', '--with', 'polars', temp_file], 
@@ -350,7 +351,7 @@ def run_final_polars_code(reasoning: str, csv_path: str, polars_python_code: str
             "data.csv",
             '''
             result = df.select(pl.col("age").mean()).collect()
-            print(f"Average age: {result[0,0]}")
+            print("Average age:", float(result[0,0]))
             ''',
             "results.csv"
         )
