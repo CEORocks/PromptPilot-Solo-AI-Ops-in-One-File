@@ -310,7 +310,7 @@ try:
     print(output)
     
 except Exception as e:
-    print(json.dumps({{"error": str(e)}}), file=sys.stderr)
+    print(json.dumps({"error": str(e)}), file=sys.stderr)
     sys.exit(1)
 """)
             temp_file = f.name
@@ -393,8 +393,8 @@ try:
                 result.write_csv(output_file + '.csv')  # Default to CSV
         else:
             # For non-DataFrame results, create a single column DataFrame
-            pl.DataFrame({{'result': [str(result)]}).write_csv(output_file)
-        print(f"Results written to {{output_file}}")
+            pl.DataFrame({'result': [str(result)]}).write_csv(output_file)
+        print(f"Results written to {output_file}")
     
     # Convert result to string for display
     if isinstance(result, pl.DataFrame):
@@ -405,7 +405,7 @@ try:
     print(output)
     
 except Exception as e:
-    print(json.dumps({{"error": str(e)}}), file=sys.stderr)
+    print(json.dumps({"error": str(e)}), file=sys.stderr)
     sys.exit(1)
 """)
             temp_file = f.name
