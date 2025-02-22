@@ -415,7 +415,6 @@ except Exception as e:
             )
             f.write(script_content)
             temp_file = f.name
-            temp_file = f.name
 
         result = subprocess.run(['uv', 'run', '--with', 'polars', temp_file],
                               capture_output=True, text=True)
