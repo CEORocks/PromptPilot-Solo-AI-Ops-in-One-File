@@ -8,6 +8,11 @@
 # ]
 # ///
 
+"""
+    Example Usage:
+        uv run sfa_scrapper_agent_openai_v2.py -u https://example.com -p "Scrap and format each sentence as a separate line in a markdown list" -o "example.md"
+"""
+
 import os
 import sys
 import json
@@ -20,6 +25,7 @@ from pydantic import BaseModel, Field
 from openai import pydantic_function_tool
 from firecrawl import FirecrawlApp
 from dotenv import load_dotenv
+
 
 # Load environment variables
 load_dotenv()
@@ -84,7 +90,6 @@ AGENT_PROMPT = """<purpose>
 
 <instructions>
     <instruction>Run scrap_url, then read_local_file, then update_local_file as many times as needed to satisfy the user's prompt, then complete_task when the user's prompt is fully satisfied.</instruction>
-    <instruction>For each step, use exactly one tool call and wait for its response before proceeding.</instruction>
     <instruction>When processing content, extract exactly what the user asked for - no more, no less.</instruction>
     <instruction>When saving processed content, use proper markdown formatting.</instruction>
     <instruction>Use tools available in 'tools' section.</instruction>
@@ -214,13 +219,6 @@ def log_function_result(function_name: str, result: str):
 def log_error(error_msg: str):
     """Log an error in a rich panel."""
     console.print(Panel(str(error_msg), title="[red]Error[/red]", border_style="red"))
-
-
-def log_workflow_step(step: int, message: str):
-    """Log a workflow step in a rich panel."""
-    console.print(
-        Panel(message, title=f"[yellow]Step {step}[/yellow]", border_style="yellow")
-    )
 
 
 def scrape_url(reasoning: str, url: str, output_file_path: str) -> str:
@@ -366,23 +364,11 @@ def main():
         .replace("{{output_file_path}}", args.output_file_path)
     )
 
-    # Track workflow state
-    workflow_state = {
-        "step": 1,
-        "temp_file": temp_file,
-        "output_file": args.output_file_path,
-        "url": args.url,
-        "prompt": args.prompt,
-        "scraped_content": None,  # Store scraped content
-        "processed_content": None,  # Store processed content
-    }
-
     # Initialize conversation with system prompt and workflow start
     messages = [
-        {"role": "system", "content": formatted_prompt},
         {
             "role": "user",
-            "content": f"Start with step 1: Use the scrape_url tool to scrape {args.url} and save it to {temp_file}. You MUST use the scrape_url tool for this step.",
+            "content": formatted_prompt,
         },
     ]
 
@@ -392,22 +378,13 @@ def main():
 
     while iterations < max_iterations:
         try:
-            current_step = workflow_state["step"]
-            log_workflow_step(
-                current_step,
-                f"Processing step {current_step}: "
-                + {
-                    1: "Scraping URL",
-                    2: "Reading scraped content",
-                    3: "Processing content",
-                    4: "Saving results",
-                    5: "Completing task",
-                }.get(current_step, "Unknown step"),
+            console.rule(
+                f"[yellow]Agent Loop {iterations + 1}/{max_iterations}[/yellow]"
             )
 
             # Get completion from OpenAI
             completion = client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="o3-mini",
                 messages=messages,
                 tools=tools,
                 tool_choice="auto",
@@ -418,6 +395,13 @@ def main():
             # Print the assistant's response
             if response_message.content:
                 console.print(Panel(response_message.content, title="Assistant"))
+
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": response_message.content,
+                }
+            )
 
             # Handle tool calls
             if response_message.tool_calls:
@@ -456,88 +440,24 @@ def main():
                     # Execute the appropriate function and store result
                     result = None
                     try:
-                        if function_name == "scrape_url":
-                            if current_step != 1:
-                                log_error(
-                                    f"Invalid step for scrape_url: expected step 1, got step {current_step}"
-                                )
-                                continue
+                        if function_name == "ScrapeUrlArgs":
                             result = scrape_url(**function_args)
-                            if result:  # If scraping succeeded
-                                workflow_state["scraped_content"] = result
-                                workflow_state["step"] = 2
-                                messages.append(
-                                    {
-                                        "role": "user",
-                                        "content": f"Good. Now proceed with step 2: Use the read_local_file tool to read the content from {temp_file}. You MUST use the read_local_file tool for this step.",
-                                    }
-                                )
-                            else:
-                                log_error("Scraping failed - no content returned")
-                                return
 
-                        elif function_name == "read_local_file":
-                            if current_step != 2:
-                                log_error(
-                                    f"Invalid step for read_local_file: expected step 2, got step {current_step}"
-                                )
-                                continue
+                        elif function_name == "ReadLocalFileArgs":
                             result = read_local_file(**function_args)
-                            if result:  # If reading succeeded
-                                workflow_state["step"] = 3
-                                messages.append(
-                                    {
-                                        "role": "user",
-                                        "content": "Good. Now proceed with step 3: Process the content to extract lesson names and descriptions, and use the update_local_file tool to save them in a markdown table format. You MUST use the update_local_file tool for this step.",
-                                    }
-                                )
-                            else:
-                                log_error("Reading failed - no content returned")
-                                return
 
-                        elif function_name == "update_local_file":
-                            if current_step != 3:
-                                log_error(
-                                    f"Invalid step for update_local_file: expected step 3, got step {current_step}"
-                                )
-                                continue
+                        elif function_name == "UpdateLocalFileArgs":
                             result = update_local_file(**function_args)
-                            if (
-                                result and "success" in result.lower()
-                            ):  # If update succeeded
-                                workflow_state["processed_content"] = function_args.get(
-                                    "content"
-                                )
-                                workflow_state["step"] = 4
-                                messages.append(
-                                    {
-                                        "role": "user",
-                                        "content": "Good. Now proceed with step 4: Use the complete_task tool to signal completion. You MUST use the complete_task tool for this step.",
-                                    }
-                                )
-                            else:
-                                log_error("Update failed")
-                                return
 
-                        elif function_name == "complete_task":
-                            if current_step != 4:
-                                log_error(
-                                    f"Invalid step for complete_task: expected step 4, got step {current_step}"
-                                )
-                                continue
+                        elif function_name == "CompleteTaskArgs":
                             result = complete_task(**function_args)
-                            # Clean up temp file
-                            try:
-                                if os.path.exists(temp_file):
-                                    os.remove(temp_file)
-                            except:
-                                pass
-                            return
+                        else:
+                            raise ValueError(f"Unknown function: {function_name}")
 
                     except Exception as e:
                         error_msg = f"Error executing {function_name}: {str(e)}"
-                        log_error(error_msg)
-                        return  # Exit on error
+                        console.print(Panel(error_msg, title="[red]Error[/red]"))
+                        result = f"Error executing {function_name}({function_args}): {str(e)}"
 
                     # Add the tool response to messages
                     messages.append(
@@ -550,25 +470,7 @@ def main():
                     )
 
             else:
-                # No tool calls, just add the response to messages
-                messages.append(
-                    {"role": "assistant", "content": response_message.content}
-                )
-                # Remind the agent of the current step with explicit tool requirement
-                step_messages = {
-                    1: f"You MUST use the scrape_url tool to scrape {args.url} and save it to {temp_file}.",
-                    2: f"You MUST use the read_local_file tool to read the content from {temp_file}.",
-                    3: "You MUST use the update_local_file tool to save the processed content in markdown table format.",
-                    4: "You MUST use the complete_task tool to signal completion.",
-                }
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": f"Please proceed with step {current_step}: {step_messages.get(current_step, 'Unknown step')}",
-                    }
-                )
-
-            iterations += 1
+                raise ValueError("No tool calls found - should not happen")
 
         except Exception as e:
             log_error(f"Error: {str(e)}")
