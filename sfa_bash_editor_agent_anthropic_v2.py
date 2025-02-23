@@ -7,6 +7,11 @@
 # ]
 # ///
 
+"""
+Usage:
+    uv run sfa_bash_editor_agent_anthropic_v2.py --prompt "Create a new markdown file showcasing what you can do in markdown."
+"""
+
 import os
 import sys
 import argparse
@@ -29,6 +34,7 @@ AGENT_PROMPT = """<purpose>
     <instruction>Use the tools provided to accomplish file editing and bash command execution as needed.</instruction>
     <instruction>When you have completed the user's task, call complete_task to finalize the process.</instruction>
     <instruction>Provide reasoning with every tool call.</instruction>
+    <instruction>When constructing paths use /repo to start from the root of the repository. We'll replace it with the current working directory.</instruction>
 </instructions>
 
 <tools>
@@ -194,9 +200,19 @@ def tool_view_file(tool_input: dict) -> dict:
     try:
         reasoning = tool_input.get("reasoning")
         path = tool_input.get("path")
+
+        if not path or not path.strip():
+            error_message = "Invalid file path provided: path is empty."
+            console.log(f"[tool_view_file] Error: {error_message}")
+            return {"error": error_message}
+
         console.log(f"[tool_view_file] reasoning: {reasoning}, path: {path}")
+
         if not os.path.exists(path):
-            return {"error": f"File {path} does not exist"}
+            error_message = f"File {path} does not exist"
+            console.log(f"[tool_view_file] Error: {error_message}")
+            return {"error": error_message}
+
         with open(path, "r") as f:
             content = f.read()
         return {"result": content}
@@ -212,7 +228,23 @@ def tool_create_file(tool_input: dict) -> dict:
         path = tool_input.get("path")
         file_text = tool_input.get("file_text")
         console.log(f"[tool_create_file] reasoning: {reasoning}, path: {path}")
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        # Check for an empty or invalid path
+        if not path or not path.strip():
+            error_message = "Invalid file path provided: path is empty."
+            console.log(f"[tool_create_file] Error: {error_message}")
+            return {"error": error_message}
+
+        dirname = os.path.dirname(path)
+        if not dirname:
+            error_message = (
+                "Invalid file path provided: directory part of the path is empty."
+            )
+            console.log(f"[tool_create_file] Error: {error_message}")
+            return {"error": error_message}
+        else:
+            os.makedirs(dirname, exist_ok=True)
+
         with open(path, "w") as f:
             f.write(file_text)
         return {"result": f"File created at {path}"}
@@ -228,15 +260,34 @@ def tool_str_replace(tool_input: dict) -> dict:
         path = tool_input.get("path")
         old_str = tool_input.get("old_str")
         new_str = tool_input.get("new_str")
+
+        if not path or not path.strip():
+            error_message = "Invalid file path provided: path is empty."
+            console.log(f"[tool_str_replace] Error: {error_message}")
+            return {"error": error_message}
+
+        if not old_str:
+            error_message = "No text to replace specified: old_str is empty."
+            console.log(f"[tool_str_replace] Error: {error_message}")
+            return {"error": error_message}
+
         console.log(
             f"[tool_str_replace] reasoning: {reasoning}, path: {path}, old_str: {old_str}, new_str: {new_str}"
         )
+
         if not os.path.exists(path):
-            return {"error": f"File {path} does not exist"}
+            error_message = f"File {path} does not exist"
+            console.log(f"[tool_str_replace] Error: {error_message}")
+            return {"error": error_message}
+
         with open(path, "r") as f:
             content = f.read()
+
         if old_str not in content:
-            return {"error": f"'{old_str}' not found in {path}"}
+            error_message = f"'{old_str}' not found in {path}"
+            console.log(f"[tool_str_replace] Error: {error_message}")
+            return {"error": error_message}
+
         new_content = content.replace(old_str, new_str)
         with open(path, "w") as f:
             f.write(new_content)
@@ -253,16 +304,42 @@ def tool_insert_line(tool_input: dict) -> dict:
         path = tool_input.get("path")
         insert_line_num = tool_input.get("insert_line")
         new_str = tool_input.get("new_str")
+
+        if not path or not path.strip():
+            error_message = "Invalid file path provided: path is empty."
+            console.log(f"[tool_insert_line] Error: {error_message}")
+            return {"error": error_message}
+
+        if insert_line_num is None:
+            error_message = "No line number specified: insert_line is missing."
+            console.log(f"[tool_insert_line] Error: {error_message}")
+            return {"error": error_message}
+
+        if not new_str:
+            error_message = "No text to insert specified: new_str is empty."
+            console.log(f"[tool_insert_line] Error: {error_message}")
+            return {"error": error_message}
+
         console.log(
             f"[tool_insert_line] reasoning: {reasoning}, path: {path}, insert_line: {insert_line_num}, new_str: {new_str}"
         )
+
         if not os.path.exists(path):
-            return {"error": f"File {path} does not exist"}
+            error_message = f"File {path} does not exist"
+            console.log(f"[tool_insert_line] Error: {error_message}")
+            return {"error": error_message}
+
         with open(path, "r") as f:
             lines = f.readlines()
+
         # Check that the index is within acceptable bounds (allowing insertion at end)
         if insert_line_num < 0 or insert_line_num > len(lines):
-            return {"error": "Insert line number out of range."}
+            error_message = (
+                f"Insert line number {insert_line_num} out of range (0-{len(lines)})."
+            )
+            console.log(f"[tool_insert_line] Error: {error_message}")
+            return {"error": error_message}
+
         lines.insert(insert_line_num, new_str + "\n")
         with open(path, "w") as f:
             f.writelines(lines)
@@ -277,6 +354,12 @@ def tool_execute_bash(tool_input: dict) -> dict:
     try:
         reasoning = tool_input.get("reasoning")
         command = tool_input.get("command")
+
+        if not command or not command.strip():
+            error_message = "No command specified: command is empty."
+            console.log(f"[tool_execute_bash] Error: {error_message}")
+            return {"error": error_message}
+
         console.log(f"[tool_execute_bash] reasoning: {reasoning}, command: {command}")
         import subprocess
 
@@ -284,7 +367,11 @@ def tool_execute_bash(tool_input: dict) -> dict:
             command, shell=True, capture_output=True, text=True, env=current_bash_env
         )
         if result.returncode != 0:
-            error_message = result.stderr.strip() or "Command execution failed."
+            error_message = (
+                result.stderr.strip()
+                or "Command execution failed with non-zero exit code."
+            )
+            console.log(f"[tool_execute_bash] Error: {error_message}")
             return {"error": error_message}
         return {"result": result.stdout.strip()}
     except Exception as e:
@@ -297,6 +384,12 @@ def tool_restart_bash(tool_input: dict) -> dict:
     global current_bash_env
     try:
         reasoning = tool_input.get("reasoning")
+
+        if not reasoning:
+            error_message = "No reasoning provided for restarting bash session."
+            console.log(f"[tool_restart_bash] Error: {error_message}")
+            return {"error": error_message}
+
         console.log(f"[tool_restart_bash] reasoning: {reasoning}")
         current_bash_env = os.environ.copy()
         return {"result": "Bash session restarted."}
@@ -309,6 +402,12 @@ def tool_restart_bash(tool_input: dict) -> dict:
 def tool_complete_task(tool_input: dict) -> dict:
     try:
         reasoning = tool_input.get("reasoning")
+
+        if not reasoning:
+            error_message = "No reasoning provided for task completion."
+            console.log(f"[tool_complete_task] Error: {error_message}")
+            return {"error": error_message}
+
         console.log(f"[tool_complete_task] reasoning: {reasoning}")
         return {"result": "Task completed"}
     except Exception as e:

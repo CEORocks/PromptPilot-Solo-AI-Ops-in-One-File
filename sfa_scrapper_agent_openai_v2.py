@@ -82,21 +82,12 @@ AGENT_PROMPT = """<purpose>
     Your goal is to scrape web content and filter it according to the user's needs.
 </purpose>
 
-<workflow>
-    1. First, use scrape_url to get the content from the URL and save it to a temporary file
-    2. Then, use read_local_file to read the scraped content
-    3. Process the content according to the user's prompt
-    4. Use update_local_file to save the processed content in the requested format
-    5. Finally, use complete_task to signal completion
-</workflow>
-
 <instructions>
-    <instruction>Follow the workflow steps in order - do not skip steps.</instruction>
+    <instruction>Run scrap_url, then read_local_file, then update_local_file as many times as needed to satisfy the user's prompt, then complete_task when the user's prompt is fully satisfied.</instruction>
     <instruction>For each step, use exactly one tool call and wait for its response before proceeding.</instruction>
     <instruction>When processing content, extract exactly what the user asked for - no more, no less.</instruction>
     <instruction>When saving processed content, use proper markdown formatting.</instruction>
-    <instruction>Do not mark the task as complete until all steps are done successfully.</instruction>
-    <instruction>If any step fails, report the error and stop.</instruction>
+    <instruction>Use tools available in 'tools' section.</instruction>
 </instructions>
 
 <tools>
