@@ -11,6 +11,12 @@
 """
     Example Usage:
         uv run sfa_scrapper_agent_openai_v2.py -u "https://example.com" -p "Scrap and format each sentence as a separate line in a markdown list" -o "example.md"
+
+        uv run sfa_scrapper_agent_openai_v2.py \
+            --url https://agenticengineer.com/principled-ai-coding \
+            --prompt "What are the names and descriptions of each lesson?" \
+            --output-file-path paic-lessons.md \
+            -c 10
 """
 
 import os
@@ -236,8 +242,8 @@ def scrape_url(reasoning: str, url: str, output_file_path: str) -> str:
             },
         )
 
-        if response.get("success"):
-            content = response["data"]["markdown"]
+        if response.get("markdown"):
+            content = response["markdown"]
             with open(output_file_path, "w") as f:
                 f.write(content)
             log_function_result(
@@ -348,7 +354,7 @@ def main():
         "--compute-limit",
         "-c",
         type=int,
-        default=20,  # Increased default compute limit
+        default=10,  # Increased default compute limit
         help="Maximum number of tokens to use for response",
     )
 
@@ -372,8 +378,13 @@ def main():
     # Track number of iterations
     iterations = 0
     max_iterations = args.compute_limit
+    break_loop = False
 
     while iterations < max_iterations:
+
+        if break_loop:
+            break
+
         iterations += 1
         try:
             console.rule(f"[yellow]Agent Loop {iterations}/{max_iterations}[/yellow]")
@@ -389,13 +400,14 @@ def main():
             response_message = completion.choices[0].message
 
             # Print the assistant's response
-            if response_message.content:
-                console.print(Panel(response_message.content, title="Assistant"))
+            assistant_content = response_message.content or ""
+            if assistant_content:
+                console.print(Panel(assistant_content, title="Assistant"))
 
             messages.append(
                 {
                     "role": "assistant",
-                    "content": response_message.content,
+                    "content": assistant_content,
                 }
             )
 
@@ -447,6 +459,7 @@ def main():
 
                         elif function_name == "CompleteTaskArgs":
                             result = complete_task(**function_args)
+                            break_loop = True
                         else:
                             raise ValueError(f"Unknown function: {function_name}")
 
