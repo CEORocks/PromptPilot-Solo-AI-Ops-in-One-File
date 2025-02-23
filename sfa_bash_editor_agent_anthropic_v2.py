@@ -9,7 +9,23 @@
 
 """
 Usage:
-    uv run sfa_bash_editor_agent_anthropic_v2.py --prompt "Create a new markdown file showcasing what you can do in markdown."
+    # View a file
+    uv run sfa_bash_editor_agent_anthropic_v2.py --prompt "Show me the first 10 lines of README.md"
+
+    # Create a new file
+    uv run sfa_bash_editor_agent_anthropic_v2.py --prompt "Create a new file called hello.txt with 'Hello World!' in it"
+
+    # Replace text in a file
+    uv run sfa_bash_editor_agent_anthropic_v2.py --prompt "Create a new file called hello.txt with 'Hello World!' in it. Then update hello.txt to say 'Hello AI Coding World'"
+
+    # Insert a line in a file
+    uv run sfa_bash_editor_agent_anthropic_v2.py --prompt "Create a new file called hello2.txt with 'Hello AI Coding World!' in it. Then add a new line 'How are you?' after 'Hello AI World!' in hello.txt"
+
+    # Execute a bash command
+    uv run sfa_bash_editor_agent_anthropic_v2.py --prompt "List all Python files in the current directory sorted by size"
+
+    # Complete a multi-step task
+    uv run sfa_bash_editor_agent_anthropic_v2.py --prompt "List all Python files in the current directory sorted by size, then output to a markdown file called python_files_sorted_by_size.md"
 """
 
 import os
@@ -195,11 +211,14 @@ AGENT_PROMPT = """<purpose>
 </user-request>
 """
 
+root_path_to_replace_with_cwd = "/repo"
+
 
 def tool_view_file(tool_input: dict) -> dict:
     try:
         reasoning = tool_input.get("reasoning")
         path = tool_input.get("path")
+        path = path.replace(root_path_to_replace_with_cwd, os.getcwd())
 
         if not path or not path.strip():
             error_message = "Invalid file path provided: path is empty."
@@ -227,6 +246,8 @@ def tool_create_file(tool_input: dict) -> dict:
         reasoning = tool_input.get("reasoning")
         path = tool_input.get("path")
         file_text = tool_input.get("file_text")
+
+        path = path.replace(root_path_to_replace_with_cwd, os.getcwd())
         console.log(f"[tool_create_file] reasoning: {reasoning}, path: {path}")
 
         # Check for an empty or invalid path
@@ -260,6 +281,8 @@ def tool_str_replace(tool_input: dict) -> dict:
         path = tool_input.get("path")
         old_str = tool_input.get("old_str")
         new_str = tool_input.get("new_str")
+
+        path = path.replace(root_path_to_replace_with_cwd, os.getcwd())
 
         if not path or not path.strip():
             error_message = "Invalid file path provided: path is empty."
@@ -304,6 +327,8 @@ def tool_insert_line(tool_input: dict) -> dict:
         path = tool_input.get("path")
         insert_line_num = tool_input.get("insert_line")
         new_str = tool_input.get("new_str")
+
+        path = path.replace(root_path_to_replace_with_cwd, os.getcwd())
 
         if not path or not path.strip():
             error_message = "Invalid file path provided: path is empty."
@@ -354,6 +379,8 @@ def tool_execute_bash(tool_input: dict) -> dict:
     try:
         reasoning = tool_input.get("reasoning")
         command = tool_input.get("command")
+
+        command = command.replace(root_path_to_replace_with_cwd, os.getcwd())
 
         if not command or not command.strip():
             error_message = "No command specified: command is empty."
@@ -588,7 +615,6 @@ def main():
             break
 
         console.log("[green]API Response:[/green]", response.model_dump())
-        messages.append({"role": "assistant", "content": response.content})
 
         tool_calls = [
             block
@@ -607,13 +633,13 @@ def main():
                 "complete_task": tool_complete_task,
             }
             for tool in tool_calls:
+                messages.append({"role": "assistant", "content": response.content})
                 console.print(
                     f"[blue]Tool Call:[/blue] {tool.name}({json.dumps(tool.input)})"
                 )
                 func = tool_functions.get(tool.name)
                 if func:
                     output = func(tool.input)
-                    is_error = "error" in output
                     result_text = output.get("error") or output.get("result", "")
                     console.print(f"[green]Tool Result:[/green] {result_text}")
                     messages.append(
@@ -624,7 +650,6 @@ def main():
                                     "type": "tool_result",
                                     "tool_use_id": tool.id,
                                     "content": result_text,
-                                    "is_error": is_error,
                                 }
                             ],
                         }
@@ -635,7 +660,7 @@ def main():
                         )
                         return
                 else:
-                    console.print(f"[red]Unknown tool: {tool.name}[/red]")
+                    raise ValueError(f"Unknown tool: {tool.name}")
 
     console.print("[yellow]Reached compute limit without completing task.[/yellow]")
 
