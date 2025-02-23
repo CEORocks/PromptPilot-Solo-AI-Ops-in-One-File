@@ -7,12 +7,19 @@
 # ]
 # ///
 
+"""
+    Example Usage:
+        uv run sfa_polars_csv_agent_openai_v2.py -i "data/analytics.csv" -p "What is the average age of the users?"
+"""
+
+import io
 import os
 import sys
 import json
 import argparse
 import tempfile
 import subprocess
+import time
 from typing import List, Optional
 from rich.console import Console
 from rich.panel import Panel
@@ -78,18 +85,16 @@ AGENT_PROMPT = """<purpose>
     <instruction>Use the provided tools to explore the CSV data and construct the perfect Polars transformation.</instruction>
     <instruction>Start by listing columns to understand what's available in the CSV.</instruction>
     <instruction>Sample the CSV to see actual data patterns.</instruction>
-    <instruction>Test Polars code before finalizing it.</instruction>
+    <instruction>Test Polars code with run_test_polars_code before finalizing it. Run the run_test_polars_code tool as many times as needed to get the code working.</instruction>
     <instruction>Only call run_final_polars_code when you're confident the code is perfect.</instruction>
-    <instruction>Be thorough but efficient with tool usage.</instruction>
     <instruction>If you find your run_test_polars_code tool call returns an error or won't satisfy the user request, try to fix the code or try a different approach.</instruction>
     <instruction>Think step by step about what information you need.</instruction>
     <instruction>Be sure to specify every parameter for each tool call.</instruction>
     <instruction>Every tool call should have a reasoning parameter which gives you a place to explain why you are calling the tool.</instruction>
-    <instruction>When writing Polars code, always use proper error handling and data validation.</instruction>
-    <instruction>For data transformations, prefer using Polars' lazy evaluation (LazyFrame) for better performance on large datasets.</instruction>
     <instruction>When using run_test_polars_code, make sure to test edge cases and validate data types.</instruction>
-    <instruction>If saving results to a file, specify the output_file parameter in run_final_polars_code with either .csv or .json extension.</instruction>
-    <instruction>Your code should handle both LazyFrame and DataFrame results appropriately.</instruction>
+    <instruction>If saving results to a file, add file writing code to the end of your polars_python_code variable (df.write_csv(output_file)).</instruction>
+    <instruction>Your code should use DataFrame to immediately operate on the data.</instruction>
+    <instruction>Your polars_python_code variable should be a complete python script that can be run with uv run --with polars. Read the code in the csv_file_path, operate on the data as requested, and print the results.</instruction>
 </instructions>
 
 <tools>
@@ -150,13 +155,7 @@ AGENT_PROMPT = """<purpose>
             <parameter>
                 <name>polars_python_code</name>
                 <type>string</type>
-                <description>The Polars Python code to test</description>
-                <required>true</required>
-            </parameter>
-            <parameter>
-                <name>csv_path</name>
-                <type>string</type>
-                <description>Path to the CSV file</description>
+                <description>The Complete Polars Python code to test</description>
                 <required>true</required>
             </parameter>
         </parameters>
@@ -173,22 +172,10 @@ AGENT_PROMPT = """<purpose>
                 <required>true</required>
             </parameter>
             <parameter>
-                <name>csv_path</name>
-                <type>string</type>
-                <description>Path to the CSV file</description>
-                <required>true</required>
-            </parameter>
-            <parameter>
                 <name>polars_python_code</name>
                 <type>string</type>
-                <description>The validated Polars Python code to run</description>
+                <description>The complete validated Polars Python code to run</description>
                 <required>true</required>
-            </parameter>
-            <parameter>
-                <name>output_file</name>
-                <type>string</type>
-                <description>Optional path to save results to</description>
-                <required>false</required>
             </parameter>
         </parameters>
     </tool>
@@ -264,7 +251,7 @@ def sample_csv(reasoning: str, csv_path: str, row_count: int) -> str:
         return ""
 
 
-def run_test_polars_code(reasoning: str, polars_python_code: str, csv_path: str) -> str:
+def run_test_polars_code(reasoning: str, polars_python_code: str) -> str:
     """Executes test Polars Python code and returns results.
 
     The agent uses this to validate code before finalizing it.
@@ -274,73 +261,33 @@ def run_test_polars_code(reasoning: str, polars_python_code: str, csv_path: str)
     Args:
         reasoning: Explanation of why we're running this test code
         polars_python_code: The Polars Python code to test. Should use pl.scan_csv() for lazy evaluation.
-        csv_path: Path to the CSV file
 
     Returns:
         Code execution results as a string
-
-    Example:
-        result = run_test_polars_code(
-            "Testing average age calculation",
-            '''
-            # Calculate average age using lazy evaluation
-            result = df.select(pl.col("age").mean().alias("avg_age")).collect()
-            print("Average age:", float(result[0, "avg_age"]))
-            ''',
-            "data.csv"
-        )
     """
     try:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            # Ensure code is properly indented
-            indented_code = "\n".join(
-                "    " + line if line.strip() else line
-                for line in polars_python_code.splitlines()
-            )
+        # Create a unique filename based on timestamp
+        timestamp = int(time.time())
+        filename = f"test_polars_{timestamp}.py"
 
-            script = """import polars as pl
-import sys
+        # Write code to a real file
+        with open(filename, "w") as f:
+            f.write(polars_python_code)
 
-# Read the CSV file using lazy evaluation
-df = pl.scan_csv("{csv_path}")
-
-try:
-{code}
-    
-    # If no result was explicitly printed, try to collect and display
-    if 'result' not in locals():
-        if any(var for var in locals().values() if isinstance(var, (pl.LazyFrame, pl.DataFrame))):
-            result = next(var for var in reversed(list(locals().values())) 
-                      if isinstance(var, (pl.LazyFrame, pl.DataFrame)))
-            if isinstance(result, pl.LazyFrame):
-                result = result.collect()
-        else:
-            result = df.collect()
-    
-    # Convert result to string for display
-    if isinstance(result, pl.DataFrame):
-        print(result.select(pl.all()).write_csv(None))
-    else:
-        print(str(result))
-except Exception as e:
-    print("Error: " + str(e), file=sys.stderr)
-    sys.exit(1)
-"""
-            script_content = script.format(csv_path=csv_path, code=indented_code)
-            f.write(script_content)
-            temp_file = f.name
-
+        # Execute the code
         result = subprocess.run(
-            ["uv", "run", "--with", "polars", temp_file], capture_output=True, text=True
+            ["uv", "run", "--with", "polars", filename],
+            text=True,
+            capture_output=True,
         )
-        os.unlink(temp_file)
+        output = result.stdout + result.stderr
 
-        if result.returncode != 0:
-            return f"Error: {result.stderr}"
+        # Clean up the file
+        os.remove(filename)
 
         console.log(f"[blue]Test Code Tool[/blue] - Reasoning: {reasoning}")
         console.log(f"[dim]Code:\n{polars_python_code}[/dim]")
-        return result.stdout
+        return output
     except Exception as e:
         console.log(f"[red]Error running test code: {str(e)}[/red]")
         return str(e)
@@ -348,9 +295,7 @@ except Exception as e:
 
 def run_final_polars_code(
     reasoning: str,
-    csv_path: str,
     polars_python_code: str,
-    output_file: Optional[str] = None,
 ) -> str:
     """Executes the final Polars code and returns results to user.
 
@@ -360,99 +305,34 @@ def run_final_polars_code(
 
     Args:
         reasoning: Final explanation of how this code satisfies user request
-        csv_path: Path to the CSV file
         polars_python_code: The validated Polars Python code to run. Should use pl.scan_csv() for lazy evaluation.
-        output_file: Optional path to save results to. Use .csv or .json extension.
 
     Returns:
         Code execution results as a string
-
-    Example:
-        result = run_final_polars_code(
-            "Calculating average user age",
-            "data.csv",
-            '''
-            # Calculate average age using lazy evaluation
-            result = df.select(pl.col("age").mean().alias("avg_age")).collect()
-            print("Average age:", float(result[0, "avg_age"]))
-            ''',
-            "results.csv"
-        )
     """
     try:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            # Ensure code is properly indented
-            indented_code = "\n".join(
-                "    " + line if line.strip() else line
-                for line in polars_python_code.splitlines()
-            )
+        # Create a unique filename based on timestamp
+        timestamp = int(time.time())
+        filename = f"polars_code_{timestamp}.py"
 
-            script = """import polars as pl
-import sys
+        # Write code to a real file
+        with open(filename, "w") as f:
+            f.write(polars_python_code)
 
-try:
-    # Read the CSV file using lazy evaluation
-    df = pl.scan_csv("{csv_path}")
-    
-    # Execute the user's code
-    {code}
-    
-    # If no result was explicitly printed, try to collect and display
-    if 'result' not in locals():
-        if any(var for var in locals().values() if isinstance(var, (pl.LazyFrame, pl.DataFrame))):
-            result = next(var for var in reversed(list(locals().values())) 
-                      if isinstance(var, (pl.LazyFrame, pl.DataFrame)))
-            if isinstance(result, pl.LazyFrame):
-                result = result.collect()
-        else:
-            result = df.collect()
-    
-    # Handle output file if specified
-    output_file = {output_file}
-    if output_file:
-        if isinstance(result, pl.DataFrame):
-            if output_file.endswith('.csv'):
-                result.write_csv(output_file)
-            elif output_file.endswith('.json'):
-                result.write_json(output_file)
-            else:
-                result.write_csv(output_file + '.csv')  # Default to CSV
-        else:
-            # For non-DataFrame results, create a single column DataFrame
-            pl.DataFrame({{"result": [str(result)]}}).write_csv(output_file)
-        print("Results written to " + str(output_file))
-    
-    # Convert result to string for display
-    if isinstance(result, pl.DataFrame):
-        print(result.select(pl.all()).write_csv(None))
-    else:
-        print(str(result))
-except Exception as e:
-    print("Error: " + str(e), file=sys.stderr)
-    sys.exit(1)
-"""
-            script_content = script.format(
-                csv_path=csv_path,
-                code=indented_code,
-                output_file=repr(output_file) if output_file else "None",
-            )
-            f.write(script_content)
-            temp_file = f.name
-
+        # Execute the code
         result = subprocess.run(
-            ["uv", "run", "--with", "polars", temp_file], capture_output=True, text=True
+            ["uv", "run", "--with", "polars", filename],
+            text=True,
+            capture_output=True,
         )
-        os.unlink(temp_file)
+        output = result.stdout + result.stderr
 
-        if result.returncode != 0:
-            return f"Error: {result.stderr}"
+        # Clean up the file
+        os.remove(filename)
 
-        console.log(
-            Panel(
-                f"[green]Final Code Tool[/green]\nReasoning: {reasoning}\nCode:\n{polars_python_code}"
-            )
-        )
-        return result.stdout
+        console.log(Panel(f"[green]Final Code Tool[/green]\nReasoning: {reasoning}\n"))
+        console.log(f"[dim]Code:\n{polars_python_code}[/dim]")
+        return output
     except Exception as e:
         console.log(f"[red]Error running final code: {str(e)}[/red]")
         return str(e)
@@ -494,9 +374,13 @@ def main():
     messages: List[dict] = [{"role": "user", "content": completed_prompt}]
 
     compute_iterations = 0
+    break_loop = False
 
     # Main agent loop
     while True:
+        if break_loop:
+            break
+
         console.rule(
             f"[yellow]Agent Loop {compute_iterations+1}/{args.compute}[/yellow]"
         )
@@ -581,7 +465,6 @@ def main():
                             result = run_test_polars_code(
                                 reasoning=args_parsed.reasoning,
                                 polars_python_code=args_parsed.polars_python_code,
-                                csv_path=args_parsed.csv_path,
                             )
                         elif func_name == "RunFinalPolarsCodeArgs":
                             args_parsed = RunFinalPolarsCodeArgs.model_validate_json(
@@ -589,13 +472,9 @@ def main():
                             )
                             result = run_final_polars_code(
                                 reasoning=args_parsed.reasoning,
-                                csv_path=args_parsed.csv_path,
                                 polars_python_code=args_parsed.polars_python_code,
-                                output_file=args_parsed.output_file,
                             )
-                            console.print("\n[green]Final Results:[/green]")
-                            console.print(result)
-                            return
+                            break_loop = True
                         else:
                             raise Exception(f"Unknown tool call: {func_name}")
 
