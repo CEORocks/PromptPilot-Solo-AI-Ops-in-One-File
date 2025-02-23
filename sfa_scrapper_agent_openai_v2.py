@@ -10,7 +10,7 @@
 
 """
     Example Usage:
-        uv run sfa_scrapper_agent_openai_v2.py -u https://example.com -p "Scrap and format each sentence as a separate line in a markdown list" -o "example.md"
+        uv run sfa_scrapper_agent_openai_v2.py -u "https://example.com" -p "Scrap and format each sentence as a separate line in a markdown list" -o "example.md"
 """
 
 import os
