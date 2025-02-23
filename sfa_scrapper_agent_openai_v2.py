@@ -354,9 +354,6 @@ def main():
 
     args = parser.parse_args()
 
-    # Create a temporary file for the raw scraped content
-    temp_file = "temp_scraped_content.md"
-
     # Format the prompt with the user's arguments
     formatted_prompt = (
         AGENT_PROMPT.replace("{{user_prompt}}", args.prompt)
@@ -377,10 +374,9 @@ def main():
     max_iterations = args.compute_limit
 
     while iterations < max_iterations:
+        iterations += 1
         try:
-            console.rule(
-                f"[yellow]Agent Loop {iterations + 1}/{max_iterations}[/yellow]"
-            )
+            console.rule(f"[yellow]Agent Loop {iterations}/{max_iterations}[/yellow]")
 
             # Get completion from OpenAI
             completion = client.chat.completions.create(
@@ -475,24 +471,10 @@ def main():
         except Exception as e:
             log_error(f"Error: {str(e)}")
             console.print("[yellow]Messages at error:[/yellow]")
-            for msg in messages:
-                console.print(msg)
-            # Clean up temp file
-            try:
-                if os.path.exists(temp_file):
-                    os.remove(temp_file)
-            except:
-                pass
-            break
 
     if iterations >= max_iterations:
         log_error("Reached maximum number of iterations")
-        # Clean up temp file
-        try:
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
-        except:
-            pass
+        raise Exception("Reached maximum number of iterations")
 
 
 if __name__ == "__main__":

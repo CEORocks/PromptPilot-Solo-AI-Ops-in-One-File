@@ -608,7 +608,7 @@ def main():
             }
             for tool in tool_calls:
                 console.print(
-                    f"[blue]Tool Call:[/blue] {tool.name} with input {tool.input}"
+                    f"[blue]Tool Call:[/blue] {tool.name}({json.dumps(tool.input)})"
                 )
                 func = tool_functions.get(tool.name)
                 if func:
