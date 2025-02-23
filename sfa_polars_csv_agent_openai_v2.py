@@ -24,12 +24,14 @@ from openai import pydantic_function_tool
 # Initialize rich console
 console = Console()
 
+
 # Create our list of function tools from our pydantic models
 class ListColumnsArgs(BaseModel):
     reasoning: str = Field(
         ..., description="Explanation for listing columns relative to the user request"
     )
     csv_path: str = Field(..., description="Path to the CSV file")
+
 
 class SampleCSVArgs(BaseModel):
     reasoning: str = Field(..., description="Explanation for sampling the CSV data")
@@ -38,10 +40,12 @@ class SampleCSVArgs(BaseModel):
         ..., description="Number of rows to sample (aim for 3-5 rows)"
     )
 
+
 class RunTestPolarsCodeArgs(BaseModel):
     reasoning: str = Field(..., description="Reason for testing this Polars code")
     polars_python_code: str = Field(..., description="The Polars Python code to test")
     csv_path: str = Field(..., description="Path to the CSV file")
+
 
 class RunFinalPolarsCodeArgs(BaseModel):
     reasoning: str = Field(
@@ -49,8 +53,13 @@ class RunFinalPolarsCodeArgs(BaseModel):
         description="Final explanation of how this code satisfies the user request",
     )
     csv_path: str = Field(..., description="Path to the CSV file")
-    polars_python_code: str = Field(..., description="The validated Polars Python code to run")
-    output_file: Optional[str] = Field(None, description="Optional path to save results to")
+    polars_python_code: str = Field(
+        ..., description="The validated Polars Python code to run"
+    )
+    output_file: Optional[str] = Field(
+        None, description="Optional path to save results to"
+    )
+
 
 # Create tools list
 tools = [
@@ -194,6 +203,7 @@ AGENT_PROMPT = """<purpose>
 </csv-file-path>
 """
 
+
 def list_columns(reasoning: str, csv_path: str) -> List[str]:
     """Returns a list of columns in the CSV file.
 
@@ -220,6 +230,7 @@ def list_columns(reasoning: str, csv_path: str) -> List[str]:
     except Exception as e:
         console.log(f"[red]Error listing columns: {str(e)}[/red]")
         return []
+
 
 def sample_csv(reasoning: str, csv_path: str, row_count: int) -> str:
     """Returns a sample of rows from the CSV file.
@@ -252,6 +263,7 @@ def sample_csv(reasoning: str, csv_path: str, row_count: int) -> str:
         console.log(f"[red]Error sampling CSV: {str(e)}[/red]")
         return ""
 
+
 def run_test_polars_code(reasoning: str, polars_python_code: str, csv_path: str) -> str:
     """Executes test Polars Python code and returns results.
 
@@ -279,12 +291,14 @@ def run_test_polars_code(reasoning: str, polars_python_code: str, csv_path: str)
         )
     """
     try:
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             # Ensure code is properly indented
-            indented_code = "\n".join("    " + line if line.strip() else line 
-                                    for line in polars_python_code.splitlines())
-            
-            script = '''import polars as pl
+            indented_code = "\n".join(
+                "    " + line if line.strip() else line
+                for line in polars_python_code.splitlines()
+            )
+
+            script = """import polars as pl
 import sys
 
 # Read the CSV file using lazy evaluation
@@ -311,13 +325,14 @@ try:
 except Exception as e:
     print("Error: " + str(e), file=sys.stderr)
     sys.exit(1)
-'''
+"""
             script_content = script.format(csv_path=csv_path, code=indented_code)
             f.write(script_content)
             temp_file = f.name
 
-        result = subprocess.run(['uv', 'run', '--with', 'polars', temp_file], 
-                              capture_output=True, text=True)
+        result = subprocess.run(
+            ["uv", "run", "--with", "polars", temp_file], capture_output=True, text=True
+        )
         os.unlink(temp_file)
 
         if result.returncode != 0:
@@ -330,7 +345,13 @@ except Exception as e:
         console.log(f"[red]Error running test code: {str(e)}[/red]")
         return str(e)
 
-def run_final_polars_code(reasoning: str, csv_path: str, polars_python_code: str, output_file: Optional[str] = None) -> str:
+
+def run_final_polars_code(
+    reasoning: str,
+    csv_path: str,
+    polars_python_code: str,
+    output_file: Optional[str] = None,
+) -> str:
     """Executes the final Polars code and returns results to user.
 
     This is the last tool call the agent should make after validating the code.
@@ -359,12 +380,14 @@ def run_final_polars_code(reasoning: str, csv_path: str, polars_python_code: str
         )
     """
     try:
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             # Ensure code is properly indented
-            indented_code = "\n".join("    " + line if line.strip() else line 
-                                    for line in polars_python_code.splitlines())
-            
-            script = '''import polars as pl
+            indented_code = "\n".join(
+                "    " + line if line.strip() else line
+                for line in polars_python_code.splitlines()
+            )
+
+            script = """import polars as pl
 import sys
 
 try:
@@ -372,7 +395,7 @@ try:
     df = pl.scan_csv("{csv_path}")
     
     # Execute the user's code
-{code}
+    {code}
     
     # If no result was explicitly printed, try to collect and display
     if 'result' not in locals():
@@ -407,17 +430,18 @@ try:
 except Exception as e:
     print("Error: " + str(e), file=sys.stderr)
     sys.exit(1)
-'''
+"""
             script_content = script.format(
                 csv_path=csv_path,
                 code=indented_code,
-                output_file=repr(output_file) if output_file else 'None'
+                output_file=repr(output_file) if output_file else "None",
             )
             f.write(script_content)
             temp_file = f.name
 
-        result = subprocess.run(['uv', 'run', '--with', 'polars', temp_file],
-                              capture_output=True, text=True)
+        result = subprocess.run(
+            ["uv", "run", "--with", "polars", temp_file], capture_output=True, text=True
+        )
         os.unlink(temp_file)
 
         if result.returncode != 0:
@@ -433,12 +457,11 @@ except Exception as e:
         console.log(f"[red]Error running final code: {str(e)}[/red]")
         return str(e)
 
+
 def main():
     # Set up argument parser
     parser = argparse.ArgumentParser(description="Polars CSV Agent using OpenAI API")
-    parser.add_argument(
-        "-i", "--input", required=True, help="Path to input CSV file"
-    )
+    parser.add_argument("-i", "--input", required=True, help="Path to input CSV file")
     parser.add_argument("-p", "--prompt", required=True, help="The user's request")
     parser.add_argument(
         "-c",
@@ -464,7 +487,9 @@ def main():
     openai.api_key = OPENAI_API_KEY
 
     # Create a single combined prompt based on the full template
-    completed_prompt = AGENT_PROMPT.replace("{{user_request}}", args.prompt).replace("{{csv_file_path}}", args.input)
+    completed_prompt = AGENT_PROMPT.replace("{{user_request}}", args.prompt).replace(
+        "{{csv_file_path}}", args.input
+    )
     # Initialize messages with proper typing for OpenAI chat
     messages: List[dict] = [{"role": "user", "content": completed_prompt}]
 
@@ -481,7 +506,9 @@ def main():
             console.print(
                 "[yellow]Warning: Reached maximum compute loops without final code[/yellow]"
             )
-            console.print("[yellow]Please try adjusting your prompt or increasing the compute limit.[/yellow]")
+            console.print(
+                "[yellow]Please try adjusting your prompt or increasing the compute limit.[/yellow]"
+            )
             raise Exception(
                 f"Maximum compute loops reached: {compute_iterations}/{args.compute}"
             )
@@ -536,7 +563,7 @@ def main():
                             )
                             result = list_columns(
                                 reasoning=args_parsed.reasoning,
-                                csv_path=args_parsed.csv_path
+                                csv_path=args_parsed.csv_path,
                             )
                         elif func_name == "SampleCSVArgs":
                             args_parsed = SampleCSVArgs.model_validate_json(
@@ -604,6 +631,7 @@ def main():
         except Exception as e:
             console.print(f"[red]Error in agent loop: {str(e)}[/red]")
             raise e
+
 
 if __name__ == "__main__":
     main()
