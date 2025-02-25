@@ -17,3 +17,6 @@ patterns.log
 paic-patterns.log
 
 .env
+
+relevant_files.json
+output_relevant_files.json
