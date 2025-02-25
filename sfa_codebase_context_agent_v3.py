@@ -60,6 +60,8 @@ RETRY_WAIT = 1
 USER_PROMPT = ""
 RELEVANT_FILES = []
 OUTPUT_FILE = "output_relevant_files.json"
+INPUT_TOKENS = 0  # To track input tokens to Anthropic API
+OUTPUT_TOKENS = 0  # To track output tokens from Anthropic API
 
 
 def git_list_files(
@@ -242,6 +244,12 @@ You are a codebase context builder. Your task is to determine if a file is relev
                     messages=[{"role": "user", "content": file_prompt}],
                     system="Determine if the file is relevant to the user query.",
                 )
+                
+                # Track token usage
+                global INPUT_TOKENS, OUTPUT_TOKENS
+                if hasattr(response, 'usage') and response.usage:
+                    INPUT_TOKENS += response.usage.input_tokens
+                    OUTPUT_TOKENS += response.usage.output_tokens
 
                 # Parse the response - look for text blocks
                 response_text = None
@@ -422,6 +430,50 @@ def complete_task_output_relevant_files(reasoning: str) -> str:
     except Exception as e:
         console.log(f"[red]Error outputting relevant files: {str(e)}[/red]")
         return f"Error: {str(e)}"
+
+
+def display_token_usage():
+    """Displays the token usage and estimated cost."""
+    global INPUT_TOKENS, OUTPUT_TOKENS
+    
+    # Claude 3.7 Sonnet pricing (as of 25 February 2025)
+    input_cost_per_million = 3.00  # $3.00 per million tokens
+    output_cost_per_million = 15.00  # $15.00 per million tokens
+    
+    # Calculate costs
+    input_cost = (INPUT_TOKENS / 1_000_000) * input_cost_per_million
+    output_cost = (OUTPUT_TOKENS / 1_000_000) * output_cost_per_million
+    total_cost = input_cost + output_cost
+    
+    # Create a nice table for display
+    table = Table(title="Token Usage and Cost Summary")
+    table.add_column("Category", style="cyan")
+    table.add_column("Tokens", style="green")
+    table.add_column("Rate", style="yellow")
+    table.add_column("Cost", style="magenta")
+    
+    table.add_row(
+        "Input", 
+        f"{INPUT_TOKENS:,}", 
+        f"${input_cost_per_million:.2f}/M",
+        f"${input_cost:.4f}"
+    )
+    table.add_row(
+        "Output", 
+        f"{OUTPUT_TOKENS:,}", 
+        f"${output_cost_per_million:.2f}/M",
+        f"${output_cost:.4f}"
+    )
+    table.add_row(
+        "Total", 
+        f"{INPUT_TOKENS + OUTPUT_TOKENS:,}", 
+        "", 
+        f"${total_cost:.4f}"
+    )
+    
+    console.print(Panel(table, title="Claude 3.7 Sonnet API Usage", subtitle="(Based on Feb 2025 pricing)"))
+    
+    return total_cost
 
 
 # Define tool schemas for Anthropic
@@ -706,6 +758,13 @@ def main():
                 max_tokens=4000,
                 thinking={"type": "enabled", "budget_tokens": 2000},
             )
+            
+            # Track token usage
+            global INPUT_TOKENS, OUTPUT_TOKENS
+            if hasattr(response, 'usage') and response.usage:
+                INPUT_TOKENS += response.usage.input_tokens
+                OUTPUT_TOKENS += response.usage.output_tokens
+                console.log(f"[dim]Token usage this call: {response.usage.input_tokens} input, {response.usage.output_tokens} output[/dim]")
 
             # Extract thinking block and other content
             thinking_block = None
@@ -870,6 +929,10 @@ def main():
     console.rule("[green]Relevant Files[/green]")
     for i, file_path in enumerate(RELEVANT_FILES, 1):
         console.print(f"{i}. {file_path}")
+    
+    # Display token usage statistics
+    console.rule("[yellow]Token Usage Summary[/yellow]")
+    display_token_usage()
 
 
 if __name__ == "__main__":
