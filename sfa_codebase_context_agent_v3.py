@@ -38,7 +38,13 @@ RETRY_WAIT = 1
 USER_PROMPT = ""
 RELEVANT_FILES = []
 
-def git_list_files(reasoning: str, directory: str = os.getcwd(), globs: List[str] = [], extensions: List[str] = []) -> List[str]:
+
+def git_list_files(
+    reasoning: str,
+    directory: str = os.getcwd(),
+    globs: List[str] = [],
+    extensions: List[str] = [],
+) -> List[str]:
     """Returns a list of files in the repository, respecting gitignore.
 
     Args:
@@ -52,12 +58,14 @@ def git_list_files(reasoning: str, directory: str = os.getcwd(), globs: List[str
     """
     try:
         console.log(f"[blue]Git List Files Tool[/blue] - Reasoning: {reasoning}")
-        console.log(f"[dim]Directory: {directory}, Globs: {globs}, Extensions: {extensions}[/dim]")
-        
+        console.log(
+            f"[dim]Directory: {directory}, Globs: {globs}, Extensions: {extensions}[/dim]"
+        )
+
         # Change to the specified directory
         original_dir = os.getcwd()
         os.chdir(directory)
-        
+
         # Get all files tracked by git
         result = subprocess.run(
             "git ls-files",
@@ -65,9 +73,9 @@ def git_list_files(reasoning: str, directory: str = os.getcwd(), globs: List[str
             text=True,
             capture_output=True,
         )
-        
+
         files = result.stdout.strip().split("\n")
-        
+
         # Filter by globs if provided
         if globs:
             filtered_files = []
@@ -76,105 +84,126 @@ def git_list_files(reasoning: str, directory: str = os.getcwd(), globs: List[str
                     if fnmatch.fnmatch(file, pattern):
                         filtered_files.append(file)
             files = filtered_files
-        
+
         # Filter by extensions if provided
         if extensions:
-            files = [file for file in files if any(file.endswith(f".{ext}") for ext in extensions)]
-        
+            files = [
+                file
+                for file in files
+                if any(file.endswith(f".{ext}") for ext in extensions)
+            ]
+
         # Change back to the original directory
         os.chdir(original_dir)
-        
+
         # Convert to absolute paths
         files = [os.path.join(directory, file) for file in files]
-        
+
         console.log(f"[dim]Found {len(files)} files[/dim]")
         return files
     except Exception as e:
         console.log(f"[red]Error listing files: {str(e)}[/red]")
         return []
 
-def check_file_paths_line_length(reasoning: str, file_paths: List[str], file_line_limit: int = 500) -> Dict[str, int]:
+
+def check_file_paths_line_length(
+    reasoning: str, file_paths: List[str], file_line_limit: int = 500
+) -> Dict[str, int]:
     """Checks the line length of each file and returns a dictionary of file paths and their line counts.
-    
+
     Args:
         reasoning: Explanation of why we're checking line lengths
         file_paths: List of file paths to check
         file_line_limit: Maximum number of lines per file
-        
+
     Returns:
         Dictionary mapping file paths to their total line counts
     """
     try:
-        console.log(f"[blue]Check File Paths Line Length Tool[/blue] - Reasoning: {reasoning}")
-        console.log(f"[dim]Checking {len(file_paths)} files with line limit {file_line_limit}[/dim]")
-        
+        console.log(
+            f"[blue]Check File Paths Line Length Tool[/blue] - Reasoning: {reasoning}"
+        )
+        console.log(
+            f"[dim]Checking {len(file_paths)} files with line limit {file_line_limit}[/dim]"
+        )
+
         result = {}
         for file_path in file_paths:
             try:
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     lines = f.readlines()
                     line_count = len(lines)
                     if line_count <= file_line_limit:
                         result[file_path] = line_count
                     else:
-                        console.log(f"[yellow]Skipping {file_path}: {line_count} lines exceed limit of {file_line_limit}[/yellow]")
+                        console.log(
+                            f"[yellow]Skipping {file_path}: {line_count} lines exceed limit of {file_line_limit}[/yellow]"
+                        )
             except Exception as e:
                 console.log(f"[red]Error reading file {file_path}: {str(e)}[/red]")
-        
+
         console.log(f"[dim]Found {len(result)} files within line limit[/dim]")
         return result
     except Exception as e:
         console.log(f"[red]Error checking file paths: {str(e)}[/red]")
         return {}
 
+
 def determine_if_file_is_relevant(prompt: str, file_path: str, client: Anthropic) -> Dict[str, Any]:  # type: ignore
     """Determines if a single file is relevant to the prompt.
-    
+
     Args:
         prompt: The user prompt
         file_path: Path to the file to check
         client: Anthropic client
-        
+
     Returns:
         Dictionary with reasoning and is_relevant flag
     """
     result = {
         "reasoning": "Error: Could not process file",
         "file_path": file_path,
-        "is_relevant": False
+        "is_relevant": False,
     }
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             file_content = f.read()
-        
+
         # Truncate file content if it's too long
         if len(file_content) > 10000:
             file_content = file_content[:10000] + "... [content truncated]"
-        
-        file_prompt = f"""
-        <purpose>
-        You are a codebase context builder. Your task is to determine if a file is relevant to a user query.
-        </purpose>
-        
-        <instructions>
-        <instruction>Analyze the file content and determine if it's relevant to the user query.</instruction>
-        <instruction>Provide clear reasoning for your decision.</instruction>
-        <instruction>Return a structured output with your reasoning and a boolean indicating relevance.</instruction>
-        </instructions>
-        
-        <user-query>
-        {prompt}
-        </user-query>
-        
-        <file-path>
-        {file_path}
-        </file-path>
-        
-        <file-content>
-        {file_content}
-        </file-content>
+
+        file_prompt = f"""<purpose>
+You are a codebase context builder. Your task is to determine if a file is relevant to a user query.
+</purpose>
+
+<instructions>
+<instruction>Analyze the file content and determine if it's relevant to the user query.</instruction>
+<instruction>Provide clear reasoning for your decision.</instruction>
+<instruction>Return a structured output with your reasoning and a boolean indicating relevance.</instruction>
+<instruction>Resond in JSON format following the json-output-format.</instruction>
+</instructions>
+
+<user-query>
+{prompt}
+</user-query>
+
+<file-path>
+{file_path}
+</file-path>
+
+<file-content>
+{file_content}
+</file-content>
+
+<json-output-format>
+{{
+    "reasoning": "Explanation of why the file is relevant",
+    "is_relevant": true | false
+}}
+</json-output-format>
         """
-        
+
         for attempt in range(MAX_RETRIES):
             try:
                 response = client.messages.create(
@@ -182,131 +211,158 @@ def determine_if_file_is_relevant(prompt: str, file_path: str, client: Anthropic
                     max_tokens=3000,  # Increased to be greater than thinking.budget_tokens
                     thinking={
                         "type": "enabled",
-                        "budget_tokens": THINKING_BUDGET_TOKENS_PER_FILE
+                        "budget_tokens": THINKING_BUDGET_TOKENS_PER_FILE,
                     },
                     messages=[{"role": "user", "content": file_prompt}],
-                    system="Determine if the file is relevant to the user query. Return a JSON object with 'reasoning' and 'is_relevant' fields."
+                    system="Determine if the file is relevant to the user query.",
                 )
-                
+
                 # Parse the response - look for text blocks
                 response_text = None
-                
+
                 # Loop through all content blocks to find the text block
                 for content_block in response.content:
                     if content_block.type == "text":
                         response_text = content_block.text
                         break
-                
+
                 # Make sure we have a text response
                 if response_text is None:
                     raise Exception("No text response found in the model output")
-                
+
                 # Handle different response formats
                 try:
                     # Try parsing as JSON first
                     result = json.loads(response_text)
                 except json.JSONDecodeError:
                     # If not valid JSON, try to extract reasoning and is_relevant from text
-                    is_relevant = "relevant" in response_text.lower() and not ("not relevant" in response_text.lower())
+                    is_relevant = "relevant" in response_text.lower() and not (
+                        "not relevant" in response_text.lower()
+                    )
                     result = {
                         "reasoning": response_text.strip(),
-                        "is_relevant": is_relevant
+                        "is_relevant": is_relevant,
                     }
-                
+
                 return {
                     "reasoning": result.get("reasoning", "No reasoning provided"),
                     "file_path": file_path,
-                    "is_relevant": result.get("is_relevant", False)
+                    "is_relevant": result.get("is_relevant", False),
                 }
             except Exception as e:
                 if attempt < MAX_RETRIES - 1:
-                    console.log(f"[yellow]Retry {attempt + 1}/{MAX_RETRIES} for {file_path}: {str(e)}[/yellow]")
+                    console.log(
+                        f"[yellow]Retry {attempt + 1}/{MAX_RETRIES} for {file_path}: {str(e)}[/yellow]"
+                    )
                     time.sleep(RETRY_WAIT)
                 else:
-                    console.log(f"[red]Failed to determine relevance for {file_path}: {str(e)}[/red]")
+                    console.log(
+                        f"[red]Failed to determine relevance for {file_path}: {str(e)}[/red]"
+                    )
                     return {
                         "reasoning": f"Error: {str(e)}",
                         "file_path": file_path,
-                        "is_relevant": False
+                        "is_relevant": False,
                     }
     except Exception as e:
         console.log(f"[red]Error processing file {file_path}: {str(e)}[/red]")
         return {
             "reasoning": f"Error: {str(e)}",
             "file_path": file_path,
-            "is_relevant": False
+            "is_relevant": False,
         }
 
-def determine_if_files_are_relevant(reasoning: str, file_paths: List[str]) -> Dict[str, Any]:
+
+def determine_if_files_are_relevant(
+    reasoning: str, file_paths: List[str]
+) -> Dict[str, Any]:
     """Determines if files are relevant to the prompt using parallelism.
-    
+
     Args:
         reasoning: Explanation of why we're determining relevance
         file_paths: List of file paths to check
-        
+
     Returns:
         Dictionary with results for each file
     """
     try:
-        console.log(f"[blue]Determine If Files Are Relevant Tool[/blue] - Reasoning: {reasoning}")
-        console.log(f"[dim]Checking {len(file_paths)} files in batches of {BATCH_SIZE}[/dim]")
-        
+        console.log(
+            f"[blue]Determine If Files Are Relevant Tool[/blue] - Reasoning: {reasoning}"
+        )
+        console.log(
+            f"[dim]Checking {len(file_paths)} files in batches of {BATCH_SIZE}[/dim]"
+        )
+
         # Initialize Anthropic client
         client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-        
+
         results = {}
-        
+
         # Process files in batches
         for i in range(0, len(file_paths), BATCH_SIZE):
-            batch = file_paths[i:i+BATCH_SIZE]
-            console.log(f"[dim]Processing batch {i//BATCH_SIZE + 1}/{(len(file_paths) + BATCH_SIZE - 1)//BATCH_SIZE}[/dim]")
-            
+            batch = file_paths[i : i + BATCH_SIZE]
+            console.log(
+                f"[dim]Processing batch {i//BATCH_SIZE + 1}/{(len(file_paths) + BATCH_SIZE - 1)//BATCH_SIZE}[/dim]"
+            )
+
             # Process batch in parallel
-            with concurrent.futures.ThreadPoolExecutor(max_workers=BATCH_SIZE) as executor:
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=BATCH_SIZE
+            ) as executor:
                 future_to_file = {
-                    executor.submit(determine_if_file_is_relevant, USER_PROMPT, file_path, client): file_path
+                    executor.submit(
+                        determine_if_file_is_relevant, USER_PROMPT, file_path, client
+                    ): file_path
                     for file_path in batch
                 }
-                
+
                 for future in concurrent.futures.as_completed(future_to_file):
                     file_path = future_to_file[future]
                     try:
                         result = future.result()
                         results[file_path] = result
-                        relevance = "Relevant" if result["is_relevant"] else "Not relevant"
+                        relevance = (
+                            "Relevant" if result["is_relevant"] else "Not relevant"
+                        )
                         console.log(f"[dim]{file_path}: {relevance}[/dim]")
                     except Exception as e:
-                        console.log(f"[red]Error processing {file_path}: {str(e)}[/red]")
-        
+                        console.log(
+                            f"[red]Error processing {file_path}: {str(e)}[/red]"
+                        )
+
         return results
     except Exception as e:
         console.log(f"[red]Error determining file relevance: {str(e)}[/red]")
         return {}
 
+
 def add_relevant_files(reasoning: str, file_paths: List[str]) -> str:
     """Adds files to the list of relevant files.
-    
+
     Args:
         reasoning: Explanation of why we're adding these files
         file_paths: List of file paths to add
-        
+
     Returns:
         String indicating success
     """
     try:
         console.log(f"[blue]Add Relevant Files Tool[/blue] - Reasoning: {reasoning}")
         console.log(f"[dim]Adding {len(file_paths)} files to relevant files list[/dim]")
-        
+
         global RELEVANT_FILES
         for file_path in file_paths:
             if file_path not in RELEVANT_FILES:
                 RELEVANT_FILES.append(file_path)
-        
-        console.log(f"[green]Added {len(file_paths)} files. Total relevant files: {len(RELEVANT_FILES)}[/green]")
+
+        console.log(
+            f"[green]Added {len(file_paths)} files. Total relevant files: {len(RELEVANT_FILES)}[/green]"
+        )
         return "Files Added"
     except Exception as e:
         console.log(f"[red]Error adding relevant files: {str(e)}[/red]")
         return f"Error: {str(e)}"
+
 
 # Define tool schemas for Anthropic
 TOOLS = [
@@ -326,16 +382,12 @@ TOOLS = [
                 },
                 "globs": {
                     "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
+                    "items": {"type": "string"},
                     "description": "List of glob patterns to filter files (optional)",
                 },
                 "extensions": {
                     "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
+                    "items": {"type": "string"},
                     "description": "List of file extensions to filter files (optional)",
                 },
             },
@@ -354,9 +406,7 @@ TOOLS = [
                 },
                 "file_paths": {
                     "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
+                    "items": {"type": "string"},
                     "description": "List of file paths to check",
                 },
             },
@@ -375,9 +425,7 @@ TOOLS = [
                 },
                 "file_paths": {
                     "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
+                    "items": {"type": "string"},
                     "description": "List of file paths to check",
                 },
             },
@@ -396,9 +444,7 @@ TOOLS = [
                 },
                 "file_paths": {
                     "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
+                    "items": {"type": "string"},
                     "description": "List of file paths to add",
                 },
             },
@@ -439,17 +485,53 @@ File Limit: {{limit}}
 </dynamic-variables>
 """
 
+
 def main():
     # Set up argument parser
-    parser = argparse.ArgumentParser(description="Codebase Context Agent using Claude 3.7")
+    parser = argparse.ArgumentParser(
+        description="Codebase Context Agent using Claude 3.7"
+    )
     parser.add_argument("-p", "--prompt", required=True, help="The user's request")
-    parser.add_argument("-d", "--directory", default=os.getcwd(), help="Directory to search in (defaults to current working directory)")
-    parser.add_argument("-g", "--globs", nargs="*", default=[], help="List of glob patterns to filter files (optional)")
-    parser.add_argument("-e", "--extensions", nargs="*", default=[], help="List of file extensions to filter files (optional)")
-    parser.add_argument("-q", "--quiet", action="store_true", help="Quiet mode (don't show logging)")
-    parser.add_argument("-l", "--limit", type=int, default=100, help="Maximum number of files to return")
-    parser.add_argument("-f", "--file-line-limit", type=int, default=500, help="Maximum number of lines per file")
-    parser.add_argument("-c", "--compute", type=int, default=10, help="Maximum number of agent loops (default: 10)")
+    parser.add_argument(
+        "-d",
+        "--directory",
+        default=os.getcwd(),
+        help="Directory to search in (defaults to current working directory)",
+    )
+    parser.add_argument(
+        "-g",
+        "--globs",
+        nargs="*",
+        default=[],
+        help="List of glob patterns to filter files (optional)",
+    )
+    parser.add_argument(
+        "-e",
+        "--extensions",
+        nargs="*",
+        default=[],
+        help="List of file extensions to filter files (optional)",
+    )
+    parser.add_argument(
+        "-q", "--quiet", action="store_true", help="Quiet mode (don't show logging)"
+    )
+    parser.add_argument(
+        "-l", "--limit", type=int, default=100, help="Maximum number of files to return"
+    )
+    parser.add_argument(
+        "-f",
+        "--file-line-limit",
+        type=int,
+        default=500,
+        help="Maximum number of lines per file",
+    )
+    parser.add_argument(
+        "-c",
+        "--compute",
+        type=int,
+        default=10,
+        help="Maximum number of agent loops (default: 10)",
+    )
     args = parser.parse_args()
 
     # Configure the API key
@@ -483,7 +565,7 @@ def main():
         .replace("{{file_line_limit}}", str(args.file_line_limit))
         .replace("{{limit}}", str(args.limit))
     )
-    
+
     # Initialize messages with proper typing for Anthropic chat
     messages = [{"role": "user", "content": completed_prompt}]
 
@@ -491,7 +573,11 @@ def main():
     break_loop = False
     # Main agent loop
     while True:
-        if break_loop or compute_iterations >= args.compute or len(RELEVANT_FILES) >= args.limit:
+        if (
+            break_loop
+            or compute_iterations >= args.compute
+            or len(RELEVANT_FILES) >= args.limit
+        ):
             break
 
         console.rule(
@@ -507,17 +593,14 @@ def main():
                 messages=messages,
                 tools=TOOLS,
                 max_tokens=4000,
-                thinking={
-                    "type": "enabled",
-                    "budget_tokens": 2000
-                },
+                thinking={"type": "enabled", "budget_tokens": 2000},
             )
 
             # Extract thinking block and other content
             thinking_block = None
             tool_use_block = None
             text_block = None
-            
+
             if response.content:
                 # Get the message content
                 for content_block in response.content:
@@ -532,20 +615,24 @@ def main():
                         tool_id = content_block.id
                     elif content_block.type == "text":
                         text_block = content_block
-                        console.print(f"[cyan]Model response:[/cyan] {content_block.text}")
-                
+                        console.print(
+                            f"[cyan]Model response:[/cyan] {content_block.text}"
+                        )
+
                 # Handle text responses if there was no tool use
                 if not tool_use_block and text_block:
-                    messages.append({  # type: ignore
-                        "role": "assistant", 
-                        "content": [
-                            *([thinking_block] if thinking_block else []), 
-                            {"type": "text", "text": text_block.text}
-                        ]
-                    })
+                    messages.append(
+                        {  # type: ignore
+                            "role": "assistant",
+                            "content": [
+                                *([thinking_block] if thinking_block else []),
+                                {"type": "text", "text": text_block.text},
+                            ],
+                        }
+                    )
                     break_loop = True
                     continue
-                
+
                 # We need a tool use block to proceed
                 if tool_use_block:
                     console.print(
@@ -582,7 +669,9 @@ def main():
                             )
                             # Check if we've reached the limit
                             if len(RELEVANT_FILES) >= args.limit:
-                                console.print(f"[green]Reached file limit of {args.limit}. Stopping.[/green]")
+                                console.print(
+                                    f"[green]Reached file limit of {args.limit}. Stopping.[/green]"
+                                )
                                 break_loop = True
                         else:
                             raise Exception(f"Unknown tool call: {tool_name}")
@@ -601,9 +690,9 @@ def main():
                                         "type": "tool_use",
                                         "id": tool_id,
                                         "name": tool_name,
-                                        "input": tool_input
-                                    }
-                                ]
+                                        "input": tool_input,
+                                    },
+                                ],
                             }
                         )
 
@@ -614,9 +703,9 @@ def main():
                                     {
                                         "type": "tool_result",
                                         "tool_use_id": tool_id,
-                                        "content": json.dumps(result)
+                                        "content": json.dumps(result),
                                     }
-                                ]
+                                ],
                             }
                         )
 
@@ -634,9 +723,9 @@ def main():
                                         "type": "tool_use",
                                         "id": tool_id,
                                         "name": tool_name,
-                                        "input": tool_input
-                                    }
-                                ]
+                                        "input": tool_input,
+                                    },
+                                ],
                             }
                         )
 
@@ -647,9 +736,9 @@ def main():
                                     {
                                         "type": "tool_result",
                                         "tool_use_id": tool_id,
-                                        "content": str(error_msg)
+                                        "content": str(error_msg),
                                     }
-                                ]
+                                ],
                             }
                         )
 
