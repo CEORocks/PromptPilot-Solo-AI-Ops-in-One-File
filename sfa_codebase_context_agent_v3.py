@@ -23,12 +23,14 @@ Usage:
     # Find files related to DuckDB implementations
     uv run sfa_codebase_context_agent_v3.py \
         --prompt "Find all files related to DuckDB agent implementations" \
+        --file-line-limit 1000 \
         --extensions py
         
     # Find all files related to Anthropic-powered agents
     uv run sfa_codebase_context_agent_v3.py \
-        --prompt "Identify all agents that use Anthropic's Claude" \
-        --extensions py --output-file anthropic_agents.json
+        --prompt "Identify all agents that use the new Claude 3.7 model"
+
+    
 """
 
 import os
@@ -42,6 +44,8 @@ import concurrent.futures
 from typing import List, Dict, Any
 from rich.console import Console
 from anthropic import Anthropic
+from rich.table import Table
+from rich.panel import Panel
 
 # Initialize rich console
 console = Console()
@@ -115,8 +119,11 @@ def git_list_files(
         # Change back to the original directory
         os.chdir(original_dir)
 
-        # Convert to absolute paths
-        files = [os.path.join(directory, file) for file in files]
+        # # Convert to absolute paths
+        # files = [os.path.join(directory, file) for file in files]
+
+        # Keep paths relative
+        files = files
 
         console.log(f"[dim]Found {len(files)} files[/dim]")
         return files
@@ -377,7 +384,7 @@ def add_relevant_files(reasoning: str, file_paths: List[str]) -> str:
         console.log(
             f"[green]Added {len(file_paths)} files. Total relevant files: {len(RELEVANT_FILES)}[/green]"
         )
-        return "Files Added"
+        return f"{len(file_paths)} files added. Total relevant files: {len(RELEVANT_FILES)}"
     except Exception as e:
         console.log(f"[red]Error adding relevant files: {str(e)}[/red]")
         return f"Error: {str(e)}"
@@ -539,6 +546,7 @@ You are a codebase context builder. Use the available tools to search, filter an
 <instruction>You MUST monitor the number of files in the relevant files list. Once you have collected at least the File-Limit number of files, you MUST call complete_task_output_relevant_files to save the list of relevant files to JSON.</instruction>
 <instruction>If you've exhausted all potential relevant files before reaching the File-Limit, you should call complete_task_output_relevant_files with the files you have.</instruction>
 <instruction>Always end your work by calling complete_task_output_relevant_files, which outputs the list of relevant files to a JSON file.</instruction>
+<instruction>current-relevant-files is the current list of files that have been identified as relevant to your query.</instruction>
 </instructions>
 
 <user-request>
@@ -553,6 +561,10 @@ File Line Limit: {{file_line_limit}}
 File-Limit: {{limit}}
 Output JSON: {{output_file}}
 </dynamic-variables>
+
+<current-relevant-files>
+{{relevant_files}}
+</current-relevant-files>
 """
 
 
@@ -633,7 +645,8 @@ def main():
     if args.quiet:
         console.quiet = True
 
-    # Create a single combined prompt based on the full template
+    # For the first initialization, create the completed prompt
+    # Will update this variable before each API call
     completed_prompt = (
         AGENT_PROMPT.replace("{{user_request}}", args.prompt)
         .replace("{{directory}}", args.directory)
@@ -642,6 +655,7 @@ def main():
         .replace("{{file_line_limit}}", str(args.file_line_limit))
         .replace("{{limit}}", str(args.limit))
         .replace("{{output_file}}", OUTPUT_FILE)
+        .replace("{{relevant_files}}", "No relevant files found yet.")
     )
 
     # Initialize messages with proper typing for Anthropic chat
@@ -660,6 +674,29 @@ def main():
         compute_iterations += 1
 
         try:
+            # Before each API call, update the completed prompt with the current relevant files
+            if RELEVANT_FILES:
+                formatted_files = "\n".join([f"- {file}" for file in RELEVANT_FILES])
+                file_count = f"Total: {len(RELEVANT_FILES)}/{args.limit} files"
+                relevant_files_section = f"{file_count}\n{formatted_files}"
+            else:
+                relevant_files_section = "No relevant files found yet."
+
+            # Update the first message with the latest relevant files information
+            completed_prompt = (
+                AGENT_PROMPT.replace("{{user_request}}", args.prompt)
+                .replace("{{directory}}", args.directory)
+                .replace("{{globs}}", str(args.globs))
+                .replace("{{extensions}}", str(args.extensions))
+                .replace("{{file_line_limit}}", str(args.file_line_limit))
+                .replace("{{limit}}", str(args.limit))
+                .replace("{{output_file}}", OUTPUT_FILE)
+                .replace("{{relevant_files}}", relevant_files_section)
+            )
+
+            # Always update the first message with the latest information before each API call
+            messages[0]["content"] = completed_prompt
+
             # Generate content with tool support
             response = client.messages.create(
                 model="claude-3-7-sonnet-20250219",
@@ -751,7 +788,14 @@ def main():
                             raise Exception(f"Unknown tool call: {tool_name}")
 
                         console.print(
-                            f"[blue]Tool Call Result:[/blue] {tool_name}(...)"
+                            f"[blue]Tool Call Result:[/blue] {tool_name}(...) -> "
+                        )
+
+                        console.print(
+                            Panel.fit(
+                                str(result),
+                                border_style="blue",
+                            )
                         )
 
                         # Append the tool result to messages
@@ -815,6 +859,8 @@ def main():
                                 ],
                             }
                         )
+
+                    # No need to update messages here since we're updating at the start of each loop iteration
 
         except Exception as e:
             console.print(f"[red]Error in agent loop: {str(e)}[/red]")
