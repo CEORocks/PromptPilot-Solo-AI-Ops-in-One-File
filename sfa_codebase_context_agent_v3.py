@@ -11,13 +11,14 @@
 """
 Usage:
     uv run sfa_codebase_context_agent_v3.py \
-        --prompt "What do i have to do to build a new v4 openai agent?" \
+        --prompt "Let's build a new metaprompt sfa agent using anthropic claude 3.7" \
         --directory "." \
         --globs "*.py" \
         --extensions py md \
         --limit 10 \
         --file-line-limit 1000 \
-        --output-file relevant_files.json
+        --output-file relevant_files.json \
+        --compute 15
 """
 
 import os
@@ -374,28 +375,32 @@ def add_relevant_files(reasoning: str, file_paths: List[str]) -> str:
 
 def complete_task_output_relevant_files(reasoning: str) -> str:
     """Outputs the list of relevant files to a JSON file.
-    
+
     Args:
         reasoning: Explanation of why we're outputting the files
-        
+
     Returns:
         String indicating success or failure
     """
     try:
-        console.log(f"[blue]Complete Task Output Relevant Files Tool[/blue] - Reasoning: {reasoning}")
-        
+        console.log(
+            f"[blue]Complete Task Output Relevant Files Tool[/blue] - Reasoning: {reasoning}"
+        )
+
         global RELEVANT_FILES
         global OUTPUT_FILE
-        
+
         if not RELEVANT_FILES:
             console.log(f"[yellow]No relevant files to output[/yellow]")
             return "No relevant files to output"
-        
+
         # Write files to JSON
-        with open(OUTPUT_FILE, 'w') as f:
+        with open(OUTPUT_FILE, "w") as f:
             json.dump(RELEVANT_FILES, f, indent=2)
-        
-        console.log(f"[green]Successfully wrote {len(RELEVANT_FILES)} files to {OUTPUT_FILE}[/green]")
+
+        console.log(
+            f"[green]Successfully wrote {len(RELEVANT_FILES)} files to {OUTPUT_FILE}[/green]"
+        )
         return f"Successfully wrote {len(RELEVANT_FILES)} files to {OUTPUT_FILE}"
     except Exception as e:
         console.log(f"[red]Error outputting relevant files: {str(e)}[/red]")
