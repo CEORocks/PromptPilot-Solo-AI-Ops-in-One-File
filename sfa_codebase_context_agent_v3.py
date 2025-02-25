@@ -200,8 +200,18 @@ def determine_if_file_is_relevant(prompt: str, file_path: str, client: Anthropic
                 # Make sure we have a text response
                 if response_text is None:
                     raise Exception("No text response found in the model output")
-                    
-                result = json.loads(response_text)
+                
+                # Handle different response formats
+                try:
+                    # Try parsing as JSON first
+                    result = json.loads(response_text)
+                except json.JSONDecodeError:
+                    # If not valid JSON, try to extract reasoning and is_relevant from text
+                    is_relevant = "relevant" in response_text.lower() and not ("not relevant" in response_text.lower())
+                    result = {
+                        "reasoning": response_text.strip(),
+                        "is_relevant": is_relevant
+                    }
                 
                 return {
                     "reasoning": result.get("reasoning", "No reasoning provided"),
