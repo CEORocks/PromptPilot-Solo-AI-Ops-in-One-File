@@ -16,7 +16,8 @@ Usage:
         --globs "*.py" \
         --extensions py md \
         --limit 10 \
-        --file-line-limit 1000
+        --file-line-limit 1000 \
+        --output-file relevant_files.json
 """
 
 import os
@@ -43,6 +44,7 @@ RETRY_WAIT = 1
 # Global variables
 USER_PROMPT = ""
 RELEVANT_FILES = []
+OUTPUT_FILE = "output_relevant_files.json"
 
 
 def git_list_files(
@@ -370,6 +372,36 @@ def add_relevant_files(reasoning: str, file_paths: List[str]) -> str:
         return f"Error: {str(e)}"
 
 
+def complete_task_output_relevant_files(reasoning: str) -> str:
+    """Outputs the list of relevant files to a JSON file.
+    
+    Args:
+        reasoning: Explanation of why we're outputting the files
+        
+    Returns:
+        String indicating success or failure
+    """
+    try:
+        console.log(f"[blue]Complete Task Output Relevant Files Tool[/blue] - Reasoning: {reasoning}")
+        
+        global RELEVANT_FILES
+        global OUTPUT_FILE
+        
+        if not RELEVANT_FILES:
+            console.log(f"[yellow]No relevant files to output[/yellow]")
+            return "No relevant files to output"
+        
+        # Write files to JSON
+        with open(OUTPUT_FILE, 'w') as f:
+            json.dump(RELEVANT_FILES, f, indent=2)
+        
+        console.log(f"[green]Successfully wrote {len(RELEVANT_FILES)} files to {OUTPUT_FILE}[/green]")
+        return f"Successfully wrote {len(RELEVANT_FILES)} files to {OUTPUT_FILE}"
+    except Exception as e:
+        console.log(f"[red]Error outputting relevant files: {str(e)}[/red]")
+        return f"Error: {str(e)}"
+
+
 # Define tool schemas for Anthropic
 TOOLS = [
     {
@@ -457,6 +489,20 @@ TOOLS = [
             "required": ["reasoning", "file_paths"],
         },
     },
+    {
+        "name": "complete_task_output_relevant_files",
+        "description": "Outputs the list of relevant files to a JSON file. Call this when you have finished identifying all relevant files.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "reasoning": {
+                    "type": "string",
+                    "description": "Why we are outputting the files to JSON",
+                },
+            },
+            "required": ["reasoning"],
+        },
+    },
 ]
 
 AGENT_PROMPT = """
@@ -475,7 +521,8 @@ You are a codebase context builder. Use the available tools to search, filter an
 <instruction>Every tool call should have a reasoning parameter which gives you a place to explain why you are calling the tool.</instruction>
 <instruction>The determine_if_files_are_relevant tool will process files in batches of 10 for efficiency.</instruction>
 <instruction>Focus on finding the most relevant files that will help answer the user query.</instruction>
-<instruction>Stop once you've reached the file limit or have exhausted all potential relevant files.</instruction>
+<instruction>Once you've reached the file limit or have exhausted all potential relevant files, call complete_task_output_relevant_files to save the list of relevant files to JSON.</instruction>
+<instruction>Always end your work by calling complete_task_output_relevant_files, which outputs the list of relevant files to a JSON file.</instruction>
 </instructions>
 
 <user-request>
@@ -488,6 +535,7 @@ Globs: {{globs}}
 Extensions: {{extensions}}
 File Line Limit: {{file_line_limit}}
 File Limit: {{limit}}
+Output JSON: {{output_file}}
 </dynamic-variables>
 """
 
@@ -538,6 +586,12 @@ def main():
         default=10,
         help="Maximum number of agent loops (default: 10)",
     )
+    parser.add_argument(
+        "-o",
+        "--output-file",
+        default="output_relevant_files.json",
+        help="Path to output JSON file with relevant files (default: output_relevant_files.json)",
+    )
     args = parser.parse_args()
 
     # Configure the API key
@@ -554,9 +608,10 @@ def main():
 
     client = Anthropic(api_key=ANTHROPIC_API_KEY)
 
-    # Set global USER_PROMPT
-    global USER_PROMPT
+    # Set global variables
+    global USER_PROMPT, OUTPUT_FILE
     USER_PROMPT = args.prompt
+    OUTPUT_FILE = args.output_file
 
     # Configure quiet mode
     if args.quiet:
@@ -570,6 +625,7 @@ def main():
         .replace("{{extensions}}", str(args.extensions))
         .replace("{{file_line_limit}}", str(args.file_line_limit))
         .replace("{{limit}}", str(args.limit))
+        .replace("{{output_file}}", OUTPUT_FILE)
     )
 
     # Initialize messages with proper typing for Anthropic chat
@@ -679,6 +735,12 @@ def main():
                                     f"[green]Reached file limit of {args.limit}. Stopping.[/green]"
                                 )
                                 break_loop = True
+                        elif tool_name == "complete_task_output_relevant_files":
+                            result = complete_task_output_relevant_files(
+                                reasoning=tool_input["reasoning"],
+                            )
+                            # Indicate that we're done after writing the output
+                            break_loop = True
                         else:
                             raise Exception(f"Unknown tool call: {tool_name}")
 
