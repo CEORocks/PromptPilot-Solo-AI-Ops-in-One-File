@@ -526,7 +526,8 @@ You are a codebase context builder. Use the available tools to search, filter an
 <instruction>Every tool call should have a reasoning parameter which gives you a place to explain why you are calling the tool.</instruction>
 <instruction>The determine_if_files_are_relevant tool will process files in batches of 10 for efficiency.</instruction>
 <instruction>Focus on finding the most relevant files that will help answer the user query.</instruction>
-<instruction>Once you've reached the file limit or have exhausted all potential relevant files, call complete_task_output_relevant_files to save the list of relevant files to JSON.</instruction>
+<instruction>You MUST monitor the number of files in the relevant files list. Once you have collected at least the File-Limit number of files, you MUST call complete_task_output_relevant_files to save the list of relevant files to JSON.</instruction>
+<instruction>If you've exhausted all potential relevant files before reaching the File-Limit, you should call complete_task_output_relevant_files with the files you have.</instruction>
 <instruction>Always end your work by calling complete_task_output_relevant_files, which outputs the list of relevant files to a JSON file.</instruction>
 </instructions>
 
@@ -539,7 +540,7 @@ Directory: {{directory}}
 Globs: {{globs}}
 Extensions: {{extensions}}
 File Line Limit: {{file_line_limit}}
-File Limit: {{limit}}
+File-Limit: {{limit}}
 Output JSON: {{output_file}}
 </dynamic-variables>
 """
@@ -640,11 +641,7 @@ def main():
     break_loop = False
     # Main agent loop
     while True:
-        if (
-            break_loop
-            or compute_iterations >= args.compute
-            or len(RELEVANT_FILES) >= args.limit
-        ):
+        if break_loop or compute_iterations >= args.compute:
             break
 
         console.rule(
@@ -734,12 +731,6 @@ def main():
                                 reasoning=tool_input["reasoning"],
                                 file_paths=tool_input["file_paths"],
                             )
-                            # Check if we've reached the limit
-                            if len(RELEVANT_FILES) >= args.limit:
-                                console.print(
-                                    f"[green]Reached file limit of {args.limit}. Stopping.[/green]"
-                                )
-                                break_loop = True
                         elif tool_name == "complete_task_output_relevant_files":
                             result = complete_task_output_relevant_files(
                                 reasoning=tool_input["reasoning"],
