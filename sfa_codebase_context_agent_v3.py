@@ -10,7 +10,13 @@
 
 """
 Usage:
-    uv run sfa_codebase_context_agent_v3.py --prompt "What do i have to do to build a new v4 openai agent?" --directory "." --globs "*.py" --extensions py md --limit 10 --file-line-limit 1000
+    uv run sfa_codebase_context_agent_v3.py \
+        --prompt "What do i have to do to build a new v4 openai agent?" \
+        --directory "." \
+        --globs "*.py" \
+        --extensions py md \
+        --limit 10 \
+        --file-line-limit 1000
 """
 
 import os
