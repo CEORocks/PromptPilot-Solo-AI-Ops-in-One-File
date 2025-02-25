@@ -437,7 +437,8 @@ def complete_task_output_relevant_files(reasoning: str) -> str:
 
 
 def search_codebase_with_ripgrep(
-    reasoning: str, query: str, base_path: str = ".", max_files: int = 10
+    reasoning: str, query: str, base_path: str = ".", max_files: int = 10, 
+    extensions: List[str] = None, globs: List[str] = None
 ) -> Dict[str, Any]:
     """
     Search the codebase at base_path for files relevant to the query using ripgrep.
@@ -447,6 +448,8 @@ def search_codebase_with_ripgrep(
         query: The search query
         base_path: Directory to search in (defaults to current working directory)
         max_files: Maximum number of top files to check (to limit processing)
+        extensions: List of file extensions to filter files (e.g. ["py", "md"])
+        globs: List of glob patterns to filter files (e.g. ["*.py", "src/*.js"])
         
     Returns:
         Dictionary with search results
@@ -457,14 +460,32 @@ def search_codebase_with_ripgrep(
         
         # 1. Use ripgrep to find candidate files and match counts
         try:
-            # '-c' counts matches per file, '-i' for case-insensitive, '--no-config' to ignore custom ripgreprc
+            # Build ripgrep command with options
+            # '-c' counts matches per file, '--no-config' to ignore custom ripgreprc
             rg_cmd = [
                 "rg",
                 "-c",
                 "--no-config",
-                query,
-                base_path,
             ]
+            
+            # Add extension filters if provided
+            if extensions and len(extensions) > 0:
+                for ext in extensions:
+                    rg_cmd.append(f"--type-add=custom:*.{ext}")
+                rg_cmd.append("--type=custom")
+                console.log(f"[dim]Filtering by extensions: {extensions}[/dim]")
+            
+            # Add glob patterns if provided
+            if globs and len(globs) > 0:
+                for glob in globs:
+                    rg_cmd.append(f"--glob={glob}")
+                console.log(f"[dim]Filtering by globs: {globs}[/dim]")
+            
+            # Add the query and search path
+            rg_cmd.append(query)
+            rg_cmd.append(base_path)
+            
+            console.log(f"[dim]Running command: {' '.join(rg_cmd)}[/dim]")
             rg_result = subprocess.run(rg_cmd, capture_output=True, text=True)
         except Exception as e:
             raise RuntimeError(f"Failed to run ripgrep: {e}")
@@ -586,6 +607,16 @@ TOOLS = [
                     "type": "integer",
                     "description": "Maximum number of top files to check (default: 10)",
                 },
+                "extensions": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of file extensions to filter by (e.g. ['py', 'md'])",
+                },
+                "globs": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of glob patterns to filter files (e.g. ['*.py', 'src/*.js'])",
+                },
             },
             "required": ["reasoning", "query"],
         },
@@ -697,16 +728,15 @@ You are a codebase context builder. Use the available tools to search, filter an
 </purpose>
 
 <instructions>
-<instruction>If ripgrep is enabled, use search_codebase_with_ripgrep to quickly find files containing specific content, which is faster and more precise for content searching.</instruction>
-<instruction>Otherwise, start by listing files in the codebase using git_list_files, filtering by globs and extensions if provided.</instruction>
+<instruction>If ripgrep is enabled, use search_codebase_with_ripgrep to quickly find files containing specific content, which is faster and more precise for content searching. When using ripgrep, skip the determine_if_files_are_relevant tool as ripgrep already identifies relevant files.</instruction>
+<instruction>If ripgrep is not enabled, start by listing files in the codebase using git_list_files, filtering by globs and extensions if provided. Then check file line lengths and determine which files are relevant to the user query using determine_if_files_are_relevant.</instruction>
 <instruction>Check file line lengths to ensure they are within the specified limit using check_file_paths_line_length.</instruction>
-<instruction>Determine which files are relevant to the user query using determine_if_files_are_relevant.</instruction>
-<instruction>Add relevant files to the final list using add_relevant_files.</instruction>
+<instruction>Add relevant files to the final list using add_relevant_files if needed.</instruction>
 <instruction>Be thorough but efficient with tool usage.</instruction>
 <instruction>Think step by step about what information you need.</instruction>
 <instruction>Be sure to specify every parameter for each tool call.</instruction>
 <instruction>Every tool call should have a reasoning parameter which gives you a place to explain why you are calling the tool.</instruction>
-<instruction>The determine_if_files_are_relevant tool will process files in batches of 10 for efficiency.</instruction>
+<instruction>The determine_if_files_are_relevant tool will process files in batches of 10 for efficiency (only use this if ripgrep is not enabled).</instruction>
 <instruction>Focus on finding the most relevant files that will help answer the user query.</instruction>
 <instruction>You MUST monitor the number of files in the relevant files list. Once you have collected at least the File-Limit number of files, you MUST call complete_task_output_relevant_files to save the list of relevant files to JSON.</instruction>
 <instruction>If you've exhausted all potential relevant files before reaching the File-Limit, you should call complete_task_output_relevant_files with the files you have.</instruction>
@@ -970,6 +1000,8 @@ def main():
                                 query=tool_input["query"],
                                 base_path=tool_input.get("base_path", args.directory),
                                 max_files=tool_input.get("max_files", args.max_ripgrep_files),
+                                extensions=tool_input.get("extensions", args.extensions),
+                                globs=tool_input.get("globs", args.globs),
                             )
                         elif tool_name == "complete_task_output_relevant_files":
                             result = complete_task_output_relevant_files(
