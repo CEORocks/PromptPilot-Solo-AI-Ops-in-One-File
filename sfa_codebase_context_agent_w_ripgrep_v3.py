@@ -10,7 +10,7 @@
 
 """
 Usage:
-    uv run sfa_codebase_context_agent_v3.py \
+    uv run sfa_codebase_context_agent_w_ripgrep_v3.py \
         --prompt "Let's build a new metaprompt sfa agent using anthropic claude 3.7" \
         --directory "." \
         --globs "*.py" \
@@ -21,15 +21,19 @@ Usage:
         --compute 15
         
     # Find files related to DuckDB implementations
-    uv run sfa_codebase_context_agent_v3.py \
+    uv run sfa_codebase_context_agent_w_ripgrep_v3.py \
         --prompt "Find all files related to DuckDB agent implementations" \
         --file-line-limit 1000 \
         --extensions py
         
     # Find all files related to Anthropic-powered agents
-    uv run sfa_codebase_context_agent_v3.py \
+    uv run sfa_codebase_context_agent_w_ripgrep_v3.py \
         --prompt "Identify all agents that use the new Claude 3.7 model"
 
+    # Use ripgrep to search codebase for specific query
+    uv run sfa_codebase_context_agent_w_ripgrep_v3.py \
+        --prompt "Find all files that use the Anthropic API" \
+        --use-ripgrep
     
 """
 
@@ -432,6 +436,88 @@ def complete_task_output_relevant_files(reasoning: str) -> str:
         return f"Error: {str(e)}"
 
 
+def search_codebase_with_ripgrep(
+    reasoning: str, query: str, base_path: str = ".", max_files: int = 10
+) -> Dict[str, Any]:
+    """
+    Search the codebase at base_path for files relevant to the query using ripgrep.
+    
+    Args:
+        reasoning: Explanation of why we're searching the codebase
+        query: The search query
+        base_path: Directory to search in (defaults to current working directory)
+        max_files: Maximum number of top files to check (to limit processing)
+        
+    Returns:
+        Dictionary with search results
+    """
+    try:
+        console.log(f"[blue]Ripgrep Search Tool[/blue] - Reasoning: {reasoning}")
+        console.log(f"[dim]Searching for '{query}' in {base_path}[/dim]")
+        
+        # 1. Use ripgrep to find candidate files and match counts
+        try:
+            # '-c' counts matches per file, '-i' for case-insensitive, '--no-config' to ignore custom ripgreprc
+            rg_cmd = [
+                "rg",
+                "-c",
+                "--no-config",
+                query,
+                base_path,
+            ]
+            rg_result = subprocess.run(rg_cmd, capture_output=True, text=True)
+        except Exception as e:
+            raise RuntimeError(f"Failed to run ripgrep: {e}")
+
+        output = rg_result.stdout.strip()
+        candidates = []
+        if output:
+            for line in output.splitlines():
+                # Each line is "filepath:count"
+                parts = line.split(":", 1)
+                if len(parts) == 2:
+                    file_path, count_str = parts[0], parts[1]
+                else:
+                    # If ripgrep output format changes or there's a colon in filename, handle accordingly
+                    file_path = parts[0]
+                    count_str = "1"
+                # Ensure the count is an integer
+                try:
+                    count = int(count_str)
+                except ValueError:
+                    count = 1
+                candidates.append((file_path, count))
+        else:
+            # No matches found by ripgrep
+            candidates = []
+
+        # Rank candidates by match count (descending)
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        
+        console.log(f"[dim]Found {len(candidates)} files matching query[/dim]")
+        
+        results = []
+        # Process top files up to max_files limit
+        for idx, (file_path, count) in enumerate(candidates):
+            if max_files is not None and idx >= max_files:
+                break
+                
+            # Mark all files found by ripgrep as relevant since they contain the query
+            result = {"file": file_path, "match_count": count, "relevant": True}
+            results.append(result)
+            
+            # Add to our global relevant files list
+            if file_path not in RELEVANT_FILES:
+                RELEVANT_FILES.append(file_path)
+
+        console.log(f"[green]Added {len(results)} files to relevant files list[/green]")
+        return {"results": results, "total_matches": len(candidates)}
+    
+    except Exception as e:
+        console.log(f"[red]Error searching with ripgrep: {str(e)}[/red]")
+        return {"error": str(e), "results": [], "total_matches": 0}
+
+
 def display_token_usage():
     """Displays the token usage and estimated cost."""
     global INPUT_TOKENS, OUTPUT_TOKENS
@@ -478,6 +564,32 @@ def display_token_usage():
 
 # Define tool schemas for Anthropic
 TOOLS = [
+    {
+        "name": "search_codebase_with_ripgrep",
+        "description": "Search the codebase for files that match a specific query using ripgrep. Fast and efficient for finding content.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "reasoning": {
+                    "type": "string",
+                    "description": "Why we need to search the codebase",
+                },
+                "query": {
+                    "type": "string",
+                    "description": "The search query to look for in file contents",
+                },
+                "base_path": {
+                    "type": "string",
+                    "description": "Directory to search in (defaults to current working directory)",
+                },
+                "max_files": {
+                    "type": "integer",
+                    "description": "Maximum number of top files to check (default: 10)",
+                },
+            },
+            "required": ["reasoning", "query"],
+        },
+    },
     {
         "name": "git_list_files",
         "description": "Returns list of files in the repository, respecting gitignore",
@@ -585,7 +697,8 @@ You are a codebase context builder. Use the available tools to search, filter an
 </purpose>
 
 <instructions>
-<instruction>Start by listing files in the codebase using git_list_files, filtering by globs and extensions if provided.</instruction>
+<instruction>If ripgrep is enabled, use search_codebase_with_ripgrep to quickly find files containing specific content, which is faster and more precise for content searching.</instruction>
+<instruction>Otherwise, start by listing files in the codebase using git_list_files, filtering by globs and extensions if provided.</instruction>
 <instruction>Check file line lengths to ensure they are within the specified limit using check_file_paths_line_length.</instruction>
 <instruction>Determine which files are relevant to the user query using determine_if_files_are_relevant.</instruction>
 <instruction>Add relevant files to the final list using add_relevant_files.</instruction>
@@ -612,6 +725,7 @@ Extensions: {{extensions}}
 File Line Limit: {{file_line_limit}}
 File-Limit: {{limit}}
 Output JSON: {{output_file}}
+Use Ripgrep: {{use_ripgrep}}
 </dynamic-variables>
 
 <current-relevant-files>
@@ -672,6 +786,17 @@ def main():
         default="output_relevant_files.json",
         help="Path to output JSON file with relevant files (default: output_relevant_files.json)",
     )
+    parser.add_argument(
+        "--use-ripgrep",
+        action="store_true",
+        help="Use ripgrep to efficiently search file contents"
+    )
+    parser.add_argument(
+        "--max-ripgrep-files",
+        type=int, 
+        default=10,
+        help="Maximum number of files to return from ripgrep search"
+    )
     args = parser.parse_args()
 
     # Configure the API key
@@ -707,6 +832,7 @@ def main():
         .replace("{{file_line_limit}}", str(args.file_line_limit))
         .replace("{{limit}}", str(args.limit))
         .replace("{{output_file}}", OUTPUT_FILE)
+        .replace("{{use_ripgrep}}", str(args.use_ripgrep))
         .replace("{{relevant_files}}", "No relevant files found yet.")
     )
 
@@ -743,6 +869,7 @@ def main():
                 .replace("{{file_line_limit}}", str(args.file_line_limit))
                 .replace("{{limit}}", str(args.limit))
                 .replace("{{output_file}}", OUTPUT_FILE)
+                .replace("{{use_ripgrep}}", str(args.use_ripgrep))
                 .replace("{{relevant_files}}", relevant_files_section)
             )
 
@@ -836,6 +963,13 @@ def main():
                             result = add_relevant_files(
                                 reasoning=tool_input["reasoning"],
                                 file_paths=tool_input["file_paths"],
+                            )
+                        elif tool_name == "search_codebase_with_ripgrep":
+                            result = search_codebase_with_ripgrep(
+                                reasoning=tool_input["reasoning"],
+                                query=tool_input["query"],
+                                base_path=tool_input.get("base_path", args.directory),
+                                max_files=tool_input.get("max_files", args.max_ripgrep_files),
                             )
                         elif tool_name == "complete_task_output_relevant_files":
                             result = complete_task_output_relevant_files(
