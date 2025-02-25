@@ -19,6 +19,16 @@ Usage:
         --file-line-limit 1000 \
         --output-file relevant_files.json \
         --compute 15
+        
+    # Find files related to DuckDB implementations
+    uv run sfa_codebase_context_agent_v3.py \
+        --prompt "Find all files related to DuckDB agent implementations" \
+        --extensions py
+        
+    # Find all files related to Anthropic-powered agents
+    uv run sfa_codebase_context_agent_v3.py \
+        --prompt "Identify all agents that use Anthropic's Claude" \
+        --extensions py --output-file anthropic_agents.json
 """
 
 import os
