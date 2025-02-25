@@ -188,8 +188,19 @@ def determine_if_file_is_relevant(prompt: str, file_path: str, client: Anthropic
                     system="Determine if the file is relevant to the user query. Return a JSON object with 'reasoning' and 'is_relevant' fields."
                 )
                 
-                # Parse the response
-                response_text = response.content[0].text
+                # Parse the response - look for text blocks
+                response_text = None
+                
+                # Loop through all content blocks to find the text block
+                for content_block in response.content:
+                    if content_block.type == "text":
+                        response_text = content_block.text
+                        break
+                
+                # Make sure we have a text response
+                if response_text is None:
+                    raise Exception("No text response found in the model output")
+                    
                 result = json.loads(response_text)
                 
                 return {
