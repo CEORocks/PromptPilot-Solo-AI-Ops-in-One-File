@@ -20,3 +20,7 @@ paic-patterns.log
 
 relevant_files.json
 output_relevant_files.json
+
+package-lock.json
+
+agent_workspace/
