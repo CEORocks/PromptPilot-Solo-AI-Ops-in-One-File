@@ -50,6 +50,8 @@ import os
 import sys
 import argparse
 import time
+import json
+import traceback
 from typing import List, Dict, Any, Optional
 from rich.console import Console
 from rich.panel import Panel
@@ -66,6 +68,52 @@ DEFAULT_THINKING_TOKENS = 3000
 WORKSPACE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "agent_workspace")
 
 
+def normalize_path(path: str) -> str:
+    """
+    Normalize file paths to handle various formats (absolute, relative, Windows paths, etc.)
+    
+    Args:
+        path: The path to normalize
+        
+    Returns:
+        The normalized path
+    """
+    if not path:
+        return path
+        
+    # Handle Windows backslash paths if provided
+    path = path.replace('\\', os.sep)
+    
+    is_windows_path = False
+    if os.name == 'nt' and len(path) > 1 and path[1] == ":":
+        is_windows_path = True
+        
+    if path.startswith("/"):
+        # Handle case when Claude provides paths with leading slash
+        if path == "/" or path == "/.":
+            # Special case for root directory
+            path = os.getcwd()
+        else:
+            # Replace leading slash with current working directory
+            path = os.path.join(os.getcwd(), path[1:])
+        console.log(f"[normalize_path] Replaced leading slash with CWD: {path}")
+    elif path.startswith("./"):
+        # Handle relative paths starting with ./
+        path = os.path.join(os.getcwd(), path[2:])
+        console.log(f"[normalize_path] Converted ./ path to absolute: {path}")
+    elif not os.path.isabs(path) and not is_windows_path:
+        # For non-absolute paths that aren't Windows paths either
+        path = os.path.join(WORKSPACE_DIR, path)
+        console.log(f"[normalize_path] Normalized relative path to: {path}")
+    elif path.startswith("/agent_workspace/"):
+        # Handle the case when Claude uses "/agent_workspace/" prefix
+        relative_path = path.replace("/agent_workspace/", "", 1)
+        path = os.path.join(WORKSPACE_DIR, relative_path)
+        console.log(f"[normalize_path] Normalized agent_workspace path to: {path}")
+    
+    return path
+
+
 def view_file(path: str, view_range=None) -> Dict[str, Any]:
     """
     View the contents of a file.
@@ -78,8 +126,13 @@ def view_file(path: str, view_range=None) -> Dict[str, Any]:
         Dictionary with content or error message
     """
     try:
+        # Normalize the path
+        path = normalize_path(path)
+        
         if not os.path.exists(path):
-            return {"error": f"File {path} does not exist"}
+            error_msg = f"File {path} does not exist"
+            console.log(f"[view_file] Error: {error_msg}")
+            return {"error": error_msg}
             
         with open(path, 'r') as f:
             lines = f.readlines()
@@ -101,10 +154,13 @@ def view_file(path: str, view_range=None) -> Dict[str, Any]:
         syntax = Syntax(content, file_extension or "text", line_numbers=True)
         console.print(Panel(syntax, title=f"File: {path}"))
         
+        console.log(f"[view_file] Successfully viewed file: {path}")
         return {"result": content}
     except Exception as e:
         error_msg = f"Error viewing file: {str(e)}"
         console.print(f"[red]{error_msg}[/red]")
+        console.log(f"[view_file] Error: {str(e)}")
+        console.log(traceback.format_exc())
         return {"error": error_msg}
 
 
@@ -121,14 +177,21 @@ def str_replace(path: str, old_str: str, new_str: str) -> Dict[str, Any]:
         Dictionary with result or error message
     """
     try:
+        # Normalize the path
+        path = normalize_path(path)
+        
         if not os.path.exists(path):
-            return {"error": f"File {path} does not exist"}
+            error_msg = f"File {path} does not exist"
+            console.log(f"[str_replace] Error: {error_msg}")
+            return {"error": error_msg}
             
         with open(path, 'r') as f:
             content = f.read()
         
         if old_str not in content:
-            return {"error": f"The specified string was not found in the file {path}"}
+            error_msg = f"The specified string was not found in the file {path}"
+            console.log(f"[str_replace] Error: {error_msg}")
+            return {"error": error_msg}
         
         new_content = content.replace(old_str, new_str, 1)
         
@@ -136,10 +199,13 @@ def str_replace(path: str, old_str: str, new_str: str) -> Dict[str, Any]:
             f.write(new_content)
         
         console.print(f"[green]Successfully replaced text in {path}[/green]")
+        console.log(f"[str_replace] Successfully replaced text in {path}")
         return {"result": f"Successfully replaced text in {path}"}
     except Exception as e:
         error_msg = f"Error replacing text: {str(e)}"
         console.print(f"[red]{error_msg}[/red]")
+        console.log(f"[str_replace] Error: {str(e)}")
+        console.log(traceback.format_exc())
         return {"error": error_msg}
 
 
@@ -155,19 +221,32 @@ def create_file(path: str, file_text: str) -> Dict[str, Any]:
         Dictionary with result or error message
     """
     try:
+        # Check if the path is empty or invalid
+        if not path or not path.strip():
+            error_msg = "Invalid file path provided: path is empty."
+            console.log(f"[create_file] Error: {error_msg}")
+            return {"error": error_msg}
+            
+        # Normalize the path
+        path = normalize_path(path)
+            
         # Check if the directory exists
         directory = os.path.dirname(path)
         if directory and not os.path.exists(directory):
+            console.log(f"[create_file] Creating directory: {directory}")
             os.makedirs(directory)
             
         with open(path, 'w') as f:
-            f.write(file_text)
+            f.write(file_text or "")
         
         console.print(f"[green]Successfully created file {path}[/green]")
+        console.log(f"[create_file] Successfully created file {path}")
         return {"result": f"Successfully created file {path}"}
     except Exception as e:
         error_msg = f"Error creating file: {str(e)}"
         console.print(f"[red]{error_msg}[/red]")
+        console.log(f"[create_file] Error: {str(e)}")
+        console.log(traceback.format_exc())
         return {"error": error_msg}
 
 
@@ -184,14 +263,35 @@ def insert_text(path: str, insert_line: int, new_str: str) -> Dict[str, Any]:
         Dictionary with result or error message
     """
     try:
+        if not path or not path.strip():
+            error_msg = "Invalid file path provided: path is empty."
+            console.log(f"[insert_text] Error: {error_msg}")
+            return {"error": error_msg}
+            
+        # Normalize the path
+        path = normalize_path(path)
+            
         if not os.path.exists(path):
-            return {"error": f"File {path} does not exist"}
+            error_msg = f"File {path} does not exist"
+            console.log(f"[insert_text] Error: {error_msg}")
+            return {"error": error_msg}
+            
+        if insert_line is None:
+            error_msg = "No line number specified: insert_line is missing."
+            console.log(f"[insert_text] Error: {error_msg}")
+            return {"error": error_msg}
             
         with open(path, 'r') as f:
             lines = f.readlines()
         
         # Line is 0-indexed for this function, but Claude provides 1-indexed
         insert_line = min(max(0, insert_line - 1), len(lines))
+        
+        # Check that the index is within acceptable bounds
+        if insert_line < 0 or insert_line > len(lines):
+            error_msg = f"Insert line number {insert_line} out of range (0-{len(lines)})."
+            console.log(f"[insert_text] Error: {error_msg}")
+            return {"error": error_msg}
         
         # Ensure new_str ends with newline
         if new_str and not new_str.endswith('\n'):
@@ -203,10 +303,13 @@ def insert_text(path: str, insert_line: int, new_str: str) -> Dict[str, Any]:
             f.writelines(lines)
         
         console.print(f"[green]Successfully inserted text at line {insert_line + 1} in {path}[/green]")
+        console.log(f"[insert_text] Successfully inserted text at line {insert_line + 1} in {path}")
         return {"result": f"Successfully inserted text at line {insert_line + 1} in {path}"}
     except Exception as e:
         error_msg = f"Error inserting text: {str(e)}"
         console.print(f"[red]{error_msg}[/red]")
+        console.log(f"[insert_text] Error: {str(e)}")
+        console.log(traceback.format_exc())
         return {"error": error_msg}
 
 
@@ -221,9 +324,25 @@ def undo_edit(path: str) -> Dict[str, Any]:
     Returns:
         Dictionary with message about undo functionality
     """
-    message = "Undo functionality is not implemented in this version."
-    console.print(f"[yellow]{message}[/yellow]")
-    return {"result": message}
+    try:
+        if not path or not path.strip():
+            error_msg = "Invalid file path provided: path is empty."
+            console.log(f"[undo_edit] Error: {error_msg}")
+            return {"error": error_msg}
+            
+        # Normalize the path
+        path = normalize_path(path)
+            
+        message = "Undo functionality is not implemented in this version."
+        console.print(f"[yellow]{message}[/yellow]")
+        console.log(f"[undo_edit] {message}")
+        return {"result": message}
+    except Exception as e:
+        error_msg = f"Error in undo_edit: {str(e)}"
+        console.print(f"[red]{error_msg}[/red]")
+        console.log(f"[undo_edit] Error: {str(e)}")
+        console.log(traceback.format_exc())
+        return {"error": error_msg}
 
 
 def handle_tool_use(tool_use: Dict[str, Any]) -> Dict[str, Any]:
@@ -236,43 +355,61 @@ def handle_tool_use(tool_use: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Dictionary with result or error to send back to Claude
     """
-    command = tool_use.get("command")
-    path = tool_use.get("path")
-    
-    # Normalize path to use workspace directory if not absolute
-    if not os.path.isabs(path):
-        path = os.path.join(WORKSPACE_DIR, path)
-    elif path.startswith("/agent_workspace/"):
-        # Handle the case when Claude uses "/agent_workspace/" prefix
-        relative_path = path.replace("/agent_workspace/", "", 1)
-        path = os.path.join(WORKSPACE_DIR, relative_path)
-    
-    console.print(f"[blue]Executing {command} command on {path}[/blue]")
-    
-    if command == "view":
-        view_range = tool_use.get("view_range")
-        return view_file(path, view_range)
-    
-    elif command == "str_replace":
-        old_str = tool_use.get("old_str")
-        new_str = tool_use.get("new_str")
-        return str_replace(path, old_str, new_str)
-    
-    elif command == "create":
-        file_text = tool_use.get("file_text")
-        return create_file(path, file_text)
-    
-    elif command == "insert":
-        insert_line = tool_use.get("insert_line")
-        new_str = tool_use.get("new_str")
-        return insert_text(path, insert_line, new_str)
-    
-    elif command == "undo_edit":
-        return undo_edit(path)
-    
-    else:
-        error_msg = f"Unknown command: {command}"
+    try:
+        command = tool_use.get("command")
+        path = tool_use.get("path")
+        
+        console.log(f"[handle_tool_use] Received command: {command}, path: {path}")
+        
+        if not command:
+            error_msg = "No command specified in tool use request"
+            console.log(f"[handle_tool_use] Error: {error_msg}")
+            return {"error": error_msg}
+            
+        if not path and command != "undo_edit":  # undo_edit might not need a path
+            error_msg = "No path specified in tool use request"
+            console.log(f"[handle_tool_use] Error: {error_msg}")
+            return {"error": error_msg}
+        
+        # The path normalization is now handled in each file operation function
+        console.print(f"[blue]Executing {command} command on {path}[/blue]")
+        
+        if command == "view":
+            view_range = tool_use.get("view_range")
+            console.log(f"[handle_tool_use] Calling view_file with view_range: {view_range}")
+            return view_file(path, view_range)
+        
+        elif command == "str_replace":
+            old_str = tool_use.get("old_str")
+            new_str = tool_use.get("new_str")
+            console.log(f"[handle_tool_use] Calling str_replace")
+            return str_replace(path, old_str, new_str)
+        
+        elif command == "create":
+            file_text = tool_use.get("file_text")
+            console.log(f"[handle_tool_use] Calling create_file")
+            return create_file(path, file_text)
+        
+        elif command == "insert":
+            insert_line = tool_use.get("insert_line")
+            new_str = tool_use.get("new_str")
+            console.log(f"[handle_tool_use] Calling insert_text at line: {insert_line}")
+            return insert_text(path, insert_line, new_str)
+        
+        elif command == "undo_edit":
+            console.log(f"[handle_tool_use] Calling undo_edit")
+            return undo_edit(path)
+        
+        else:
+            error_msg = f"Unknown command: {command}"
+            console.print(f"[red]{error_msg}[/red]")
+            console.log(f"[handle_tool_use] Error: {error_msg}")
+            return {"error": error_msg}
+    except Exception as e:
+        error_msg = f"Error handling tool use: {str(e)}"
         console.print(f"[red]{error_msg}[/red]")
+        console.log(f"[handle_tool_use] Error: {str(e)}")
+        console.log(traceback.format_exc())
         return {"error": error_msg}
 
 
@@ -369,6 +506,9 @@ Please use the text editor tool to help me with this. First, think through what 
         tool_use_block = None
         text_block = None
         
+        # Log the entire response for debugging
+        console.log("[green]API Response:[/green]", response.model_dump())
+        
         for content_block in response.content:
             if content_block.type == "thinking":
                 thinking_block = content_block
@@ -417,44 +557,33 @@ Please use the text editor tool to help me with this. First, think through what 
         
         # Handle tool use
         if tool_use_block:
-            console.print(f"\n[bold blue]Tool Use #{tool_use_count}:[/bold blue]")
-            console.print(f"Command: {tool_use_block.input.get('command')}")
-            
-            # Add the tool use to messages
+            # Add the assistant's response to messages before handling tool calls
             messages.append({
                 "role": "assistant",
-                "content": [
-                    *([thinking_block] if thinking_block else []),
-                    tool_use_block
-                ]
+                "content": response.content
             })
+            
+            console.print(f"\n[bold blue]Tool Call:[/bold blue] {tool_use_block.name}({json.dumps(tool_use_block.input)})")
             
             # Handle the tool use
             tool_result = handle_tool_use(tool_use_block.input)
             
+            # Log tool result
+            result_text = tool_result.get("error") or tool_result.get("result", "")
+            console.print(f"[green]Tool Result:[/green] {result_text}")
+            
             # Format tool result for Claude
-            if "error" in tool_result:
-                messages.append({
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": tool_use_block.id,
-                            "content": tool_result["error"]
-                        }
-                    ]
-                })
-            else:
-                messages.append({
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": tool_use_block.id,
-                            "content": tool_result["result"]
-                        }
-                    ]
-                })
+            tool_result_message = {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": tool_use_block.id,
+                        "content": result_text
+                    }
+                ]
+            }
+            messages.append(tool_result_message)
     
     # If we reach here, we hit the max loops
     console.print(f"\n[bold red]Warning: Reached maximum loops ({max_loops}) without completing the task[/bold red]")
@@ -464,13 +593,14 @@ Please use the text editor tool to help me with this. First, think through what 
 def main():
     # Set up argument parser
     parser = argparse.ArgumentParser(description="Claude 3.7 File Editor Agent")
-    parser.add_argument("--prompt", required=True, help="The prompt for what file operations to perform")
-    parser.add_argument("--max-loops", type=int, default=15, help="Maximum number of tool use loops (default: 15)")
-    parser.add_argument("--thinking", type=int, default=DEFAULT_THINKING_TOKENS, help=f"Maximum thinking tokens (default: {DEFAULT_THINKING_TOKENS})")
-    parser.add_argument("--efficient", action="store_true", help="Enable token-efficient tool use (reduces token usage and latency)")
+    parser.add_argument("--prompt", "-p", required=True, help="The prompt for what file operations to perform")
+    parser.add_argument("--max-loops", "-l", type=int, default=15, help="Maximum number of tool use loops (default: 15)")
+    parser.add_argument("--thinking", "-t", type=int, default=DEFAULT_THINKING_TOKENS, help=f"Maximum thinking tokens (default: {DEFAULT_THINKING_TOKENS})")
+    parser.add_argument("--efficient", "-e", action="store_true", help="Enable token-efficient tool use (reduces token usage and latency)")
     args = parser.parse_args()
     
     # Make sure agent_workspace directory exists
+    console.log(f"[main] Creating workspace directory: {WORKSPACE_DIR}")
     os.makedirs(WORKSPACE_DIR, exist_ok=True)
     
     # Get API key
@@ -478,10 +608,12 @@ def main():
     if not api_key:
         console.print("[red]Error: ANTHROPIC_API_KEY environment variable is not set[/red]")
         console.print("Please set it with: export ANTHROPIC_API_KEY='your-api-key-here'")
+        console.log("[main] Error: ANTHROPIC_API_KEY environment variable is not set")
         sys.exit(1)
     
     # Initialize Anthropic client
     client = Anthropic(api_key=api_key)
+    console.log("[main] Initialized Anthropic client")
     
     console.print(Panel.fit(
         "Claude 3.7 File Editor Agent",
@@ -491,6 +623,7 @@ def main():
     console.print(f"\n[bold]Prompt:[/bold] {args.prompt}\n")
     console.print(f"[dim]Thinking tokens: {args.thinking}[/dim]")
     console.print(f"[dim]Max loops: {args.max_loops}[/dim]\n")
+    console.log(f"[main] Starting agent with: prompt='{args.prompt}', thinking={args.thinking}, max_loops={args.max_loops}, efficient={args.efficient}")
     
     try:
         # Run the agent
@@ -511,14 +644,20 @@ def main():
         console.print(f"Input tokens: {input_tokens}")
         console.print(f"Output tokens: {output_tokens}")
         console.print(f"Output/Input ratio: {token_ratio:.2f}")
+        console.log(f"[main] Token usage: input={input_tokens}, output={output_tokens}, ratio={token_ratio:.2f}")
+        
         if args.efficient:
             console.print("[cyan]Token-efficient tools were requested[/cyan]")
             console.print("[yellow]Note: Full support requires the beta SDK[/yellow]")
+            console.log("[main] Token-efficient tools were requested")
         else:
             console.print("[yellow]Standard tool calling was used[/yellow]")
+            console.log("[main] Standard tool calling was used")
         
     except Exception as e:
         console.print(f"[red]Error: {str(e)}[/red]")
+        console.log(f"[main] Error: {str(e)}")
+        console.log(traceback.format_exc())
         sys.exit(1)
 
 
