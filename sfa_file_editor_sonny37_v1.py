@@ -65,29 +65,31 @@ console = Console()
 # Define constants
 MODEL = "claude-3-7-sonnet-20250219"
 DEFAULT_THINKING_TOKENS = 3000
-WORKSPACE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "agent_workspace")
+WORKSPACE_DIR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "agent_workspace"
+)
 
 
 def normalize_path(path: str) -> str:
     """
     Normalize file paths to handle various formats (absolute, relative, Windows paths, etc.)
-    
+
     Args:
         path: The path to normalize
-        
+
     Returns:
         The normalized path
     """
     if not path:
         return path
-        
+
     # Handle Windows backslash paths if provided
-    path = path.replace('\\', os.sep)
-    
+    path = path.replace("\\", os.sep)
+
     is_windows_path = False
-    if os.name == 'nt' and len(path) > 1 and path[1] == ":":
+    if os.name == "nt" and len(path) > 1 and path[1] == ":":
         is_windows_path = True
-        
+
     if path.startswith("/"):
         # Handle case when Claude provides paths with leading slash
         if path == "/" or path == "/.":
@@ -110,33 +112,33 @@ def normalize_path(path: str) -> str:
         relative_path = path.replace("/agent_workspace/", "", 1)
         path = os.path.join(WORKSPACE_DIR, relative_path)
         console.log(f"[normalize_path] Normalized agent_workspace path to: {path}")
-    
+
     return path
 
 
 def view_file(path: str, view_range=None) -> Dict[str, Any]:
     """
     View the contents of a file.
-    
+
     Args:
         path: The path to the file to view
         view_range: Optional start and end lines to view [start, end]
-    
+
     Returns:
         Dictionary with content or error message
     """
     try:
         # Normalize the path
         path = normalize_path(path)
-        
+
         if not os.path.exists(path):
             error_msg = f"File {path} does not exist"
             console.log(f"[view_file] Error: {error_msg}")
             return {"error": error_msg}
-            
-        with open(path, 'r') as f:
+
+        with open(path, "r") as f:
             lines = f.readlines()
-        
+
         if view_range:
             start, end = view_range
             # Convert to 0-indexed for Python
@@ -146,15 +148,14 @@ def view_file(path: str, view_range=None) -> Dict[str, Any]:
             else:
                 end = min(len(lines), end)
             lines = lines[start:end]
-        
-        content = ''.join(lines)
-        
+
+        content = "".join(lines)
+
         # Display the file content (only for console, not returned to Claude)
         file_extension = os.path.splitext(path)[1][1:]  # Get extension without the dot
         syntax = Syntax(content, file_extension or "text", line_numbers=True)
         console.print(Panel(syntax, title=f"File: {path}"))
-        
-        console.log(f"[view_file] Successfully viewed file: {path}")
+
         return {"result": content}
     except Exception as e:
         error_msg = f"Error viewing file: {str(e)}"
@@ -167,37 +168,37 @@ def view_file(path: str, view_range=None) -> Dict[str, Any]:
 def str_replace(path: str, old_str: str, new_str: str) -> Dict[str, Any]:
     """
     Replace a specific string in a file.
-    
+
     Args:
         path: The path to the file to modify
         old_str: The text to replace
         new_str: The new text to insert
-    
+
     Returns:
         Dictionary with result or error message
     """
     try:
         # Normalize the path
         path = normalize_path(path)
-        
+
         if not os.path.exists(path):
             error_msg = f"File {path} does not exist"
             console.log(f"[str_replace] Error: {error_msg}")
             return {"error": error_msg}
-            
-        with open(path, 'r') as f:
+
+        with open(path, "r") as f:
             content = f.read()
-        
+
         if old_str not in content:
             error_msg = f"The specified string was not found in the file {path}"
             console.log(f"[str_replace] Error: {error_msg}")
             return {"error": error_msg}
-        
+
         new_content = content.replace(old_str, new_str, 1)
-        
-        with open(path, 'w') as f:
+
+        with open(path, "w") as f:
             f.write(new_content)
-        
+
         console.print(f"[green]Successfully replaced text in {path}[/green]")
         console.log(f"[str_replace] Successfully replaced text in {path}")
         return {"result": f"Successfully replaced text in {path}"}
@@ -212,11 +213,11 @@ def str_replace(path: str, old_str: str, new_str: str) -> Dict[str, Any]:
 def create_file(path: str, file_text: str) -> Dict[str, Any]:
     """
     Create a new file with specified content.
-    
+
     Args:
         path: The path where the new file should be created
         file_text: The content to write to the new file
-    
+
     Returns:
         Dictionary with result or error message
     """
@@ -226,19 +227,19 @@ def create_file(path: str, file_text: str) -> Dict[str, Any]:
             error_msg = "Invalid file path provided: path is empty."
             console.log(f"[create_file] Error: {error_msg}")
             return {"error": error_msg}
-            
+
         # Normalize the path
         path = normalize_path(path)
-            
+
         # Check if the directory exists
         directory = os.path.dirname(path)
         if directory and not os.path.exists(directory):
             console.log(f"[create_file] Creating directory: {directory}")
             os.makedirs(directory)
-            
-        with open(path, 'w') as f:
+
+        with open(path, "w") as f:
             f.write(file_text or "")
-        
+
         console.print(f"[green]Successfully created file {path}[/green]")
         console.log(f"[create_file] Successfully created file {path}")
         return {"result": f"Successfully created file {path}"}
@@ -253,12 +254,12 @@ def create_file(path: str, file_text: str) -> Dict[str, Any]:
 def insert_text(path: str, insert_line: int, new_str: str) -> Dict[str, Any]:
     """
     Insert text at a specific location in a file.
-    
+
     Args:
         path: The path to the file to modify
         insert_line: The line number after which to insert the text
         new_str: The text to insert
-    
+
     Returns:
         Dictionary with result or error message
     """
@@ -267,44 +268,52 @@ def insert_text(path: str, insert_line: int, new_str: str) -> Dict[str, Any]:
             error_msg = "Invalid file path provided: path is empty."
             console.log(f"[insert_text] Error: {error_msg}")
             return {"error": error_msg}
-            
+
         # Normalize the path
         path = normalize_path(path)
-            
+
         if not os.path.exists(path):
             error_msg = f"File {path} does not exist"
             console.log(f"[insert_text] Error: {error_msg}")
             return {"error": error_msg}
-            
+
         if insert_line is None:
             error_msg = "No line number specified: insert_line is missing."
             console.log(f"[insert_text] Error: {error_msg}")
             return {"error": error_msg}
-            
-        with open(path, 'r') as f:
+
+        with open(path, "r") as f:
             lines = f.readlines()
-        
+
         # Line is 0-indexed for this function, but Claude provides 1-indexed
         insert_line = min(max(0, insert_line - 1), len(lines))
-        
+
         # Check that the index is within acceptable bounds
         if insert_line < 0 or insert_line > len(lines):
-            error_msg = f"Insert line number {insert_line} out of range (0-{len(lines)})."
+            error_msg = (
+                f"Insert line number {insert_line} out of range (0-{len(lines)})."
+            )
             console.log(f"[insert_text] Error: {error_msg}")
             return {"error": error_msg}
-        
+
         # Ensure new_str ends with newline
-        if new_str and not new_str.endswith('\n'):
-            new_str += '\n'
-            
+        if new_str and not new_str.endswith("\n"):
+            new_str += "\n"
+
         lines.insert(insert_line, new_str)
-        
-        with open(path, 'w') as f:
+
+        with open(path, "w") as f:
             f.writelines(lines)
-        
-        console.print(f"[green]Successfully inserted text at line {insert_line + 1} in {path}[/green]")
-        console.log(f"[insert_text] Successfully inserted text at line {insert_line + 1} in {path}")
-        return {"result": f"Successfully inserted text at line {insert_line + 1} in {path}"}
+
+        console.print(
+            f"[green]Successfully inserted text at line {insert_line + 1} in {path}[/green]"
+        )
+        console.log(
+            f"[insert_text] Successfully inserted text at line {insert_line + 1} in {path}"
+        )
+        return {
+            "result": f"Successfully inserted text at line {insert_line + 1} in {path}"
+        }
     except Exception as e:
         error_msg = f"Error inserting text: {str(e)}"
         console.print(f"[red]{error_msg}[/red]")
@@ -317,10 +326,10 @@ def undo_edit(path: str) -> Dict[str, Any]:
     """
     Placeholder for undo_edit functionality.
     In a real implementation, you would need to track edit history.
-    
+
     Args:
         path: The path to the file whose last edit should be undone
-    
+
     Returns:
         Dictionary with message about undo functionality
     """
@@ -329,10 +338,10 @@ def undo_edit(path: str) -> Dict[str, Any]:
             error_msg = "Invalid file path provided: path is empty."
             console.log(f"[undo_edit] Error: {error_msg}")
             return {"error": error_msg}
-            
+
         # Normalize the path
         path = normalize_path(path)
-            
+
         message = "Undo functionality is not implemented in this version."
         console.print(f"[yellow]{message}[/yellow]")
         console.log(f"[undo_edit] {message}")
@@ -348,58 +357,60 @@ def undo_edit(path: str) -> Dict[str, Any]:
 def handle_tool_use(tool_use: Dict[str, Any]) -> Dict[str, Any]:
     """
     Handle text editor tool use from Claude.
-    
+
     Args:
         tool_use: The tool use request from Claude
-    
+
     Returns:
         Dictionary with result or error to send back to Claude
     """
     try:
         command = tool_use.get("command")
         path = tool_use.get("path")
-        
+
         console.log(f"[handle_tool_use] Received command: {command}, path: {path}")
-        
+
         if not command:
             error_msg = "No command specified in tool use request"
             console.log(f"[handle_tool_use] Error: {error_msg}")
             return {"error": error_msg}
-            
+
         if not path and command != "undo_edit":  # undo_edit might not need a path
             error_msg = "No path specified in tool use request"
             console.log(f"[handle_tool_use] Error: {error_msg}")
             return {"error": error_msg}
-        
+
         # The path normalization is now handled in each file operation function
         console.print(f"[blue]Executing {command} command on {path}[/blue]")
-        
+
         if command == "view":
             view_range = tool_use.get("view_range")
-            console.log(f"[handle_tool_use] Calling view_file with view_range: {view_range}")
+            console.log(
+                f"[handle_tool_use] Calling view_file with view_range: {view_range}"
+            )
             return view_file(path, view_range)
-        
+
         elif command == "str_replace":
             old_str = tool_use.get("old_str")
             new_str = tool_use.get("new_str")
             console.log(f"[handle_tool_use] Calling str_replace")
             return str_replace(path, old_str, new_str)
-        
+
         elif command == "create":
             file_text = tool_use.get("file_text")
             console.log(f"[handle_tool_use] Calling create_file")
             return create_file(path, file_text)
-        
+
         elif command == "insert":
             insert_line = tool_use.get("insert_line")
             new_str = tool_use.get("new_str")
             console.log(f"[handle_tool_use] Calling insert_text at line: {insert_line}")
             return insert_text(path, insert_line, new_str)
-        
+
         elif command == "undo_edit":
             console.log(f"[handle_tool_use] Calling undo_edit")
             return undo_edit(path)
-        
+
         else:
             error_msg = f"Unknown command: {command}"
             console.print(f"[red]{error_msg}[/red]")
@@ -413,17 +424,23 @@ def handle_tool_use(tool_use: Dict[str, Any]) -> Dict[str, Any]:
         return {"error": error_msg}
 
 
-def run_agent(client: Anthropic, prompt: str, max_thinking_tokens: int = DEFAULT_THINKING_TOKENS, max_loops: int = 10, use_efficient_tools: bool = False) -> tuple[str, int, int]:
+def run_agent(
+    client: Anthropic,
+    prompt: str,
+    max_thinking_tokens: int = DEFAULT_THINKING_TOKENS,
+    max_loops: int = 10,
+    use_efficient_tools: bool = False,
+) -> tuple[str, int, int]:
     """
     Run the Claude agent with file editing capabilities.
-    
+
     Args:
         client: The Anthropic client
         prompt: The user's prompt
         max_thinking_tokens: Maximum tokens for thinking
         max_loops: Maximum number of tool use loops
         use_efficient_tools: Whether to use token-efficient tool calling
-    
+
     Returns:
         Tuple containing:
         - Final response from Claude (str)
@@ -444,10 +461,7 @@ Follow these steps when handling file operations:
 """
 
     # Define text editor tool
-    text_editor_tool = {
-        "name": "str_replace_editor",
-        "type": "text_editor_20250124"
-    }
+    text_editor_tool = {"name": "str_replace_editor", "type": "text_editor_20250124"}
 
     messages = [
         {
@@ -457,19 +471,19 @@ Follow these steps when handling file operations:
 {prompt}
 
 Please use the text editor tool to help me with this. First, think through what you need to do, then use the appropriate tool.
-"""
+""",
         }
     ]
 
     loop_count = 0
     tool_use_count = 0
     thinking_start_time = time.time()
-    
+
     while loop_count < max_loops:
         loop_count += 1
-        
+
         console.rule(f"[yellow]Agent Loop {loop_count}/{max_loops}[/yellow]")
-        
+
         # Create message with text editor tool
         message_args = {
             "model": MODEL,
@@ -477,101 +491,111 @@ Please use the text editor tool to help me with this. First, think through what 
             "tools": [text_editor_tool],
             "messages": messages,
             "system": system_prompt,
-            "thinking": {
-                "type": "enabled",
-                "budget_tokens": max_thinking_tokens
-            }
+            "thinking": {"type": "enabled", "budget_tokens": max_thinking_tokens},
         }
-        
+
         # Try to use token-efficient tools if requested
         if use_efficient_tools:
-            console.print("[cyan]Token-efficient tools were requested but may not be available in the current SDK[/cyan]")
+            console.print(
+                "[cyan]Token-efficient tools were requested but may not be available in the current SDK[/cyan]"
+            )
             # Add a note about the attempted usage, but this feature likely requires an updated SDK
-            console.print("[yellow]Note: This feature likely requires the updated beta Anthropic SDK to work fully[/yellow]")
-        
+            console.print(
+                "[yellow]Note: This feature likely requires the updated beta Anthropic SDK to work fully[/yellow]"
+            )
+
         response = client.messages.create(**message_args)
-        
+
         # Track token usage
-        if hasattr(response, 'usage'):
-            input_tokens = getattr(response.usage, 'input_tokens', 0)
-            output_tokens = getattr(response.usage, 'output_tokens', 0)
-            
+        if hasattr(response, "usage"):
+            input_tokens = getattr(response.usage, "input_tokens", 0)
+            output_tokens = getattr(response.usage, "output_tokens", 0)
+
             input_tokens_total += input_tokens
             output_tokens_total += output_tokens
-            
-            console.print(f"[dim]Loop {loop_count} tokens: Input={input_tokens}, Output={output_tokens}[/dim]")
-        
+
+            console.print(
+                f"[dim]Loop {loop_count} tokens: Input={input_tokens}, Output={output_tokens}[/dim]"
+            )
+
         # Process response content
         thinking_block = None
         tool_use_block = None
         text_block = None
-        
+
         # Log the entire response for debugging
-        console.log("[green]API Response:[/green]", response.model_dump())
-        
+        # console.log("[green]API Response:[/green]", response.model_dump())
+
         for content_block in response.content:
             if content_block.type == "thinking":
                 thinking_block = content_block
                 # Access the thinking attribute which contains the actual thinking text
-                if hasattr(thinking_block, 'thinking'):
-                    console.print(Panel(
-                        thinking_block.thinking,
-                        title=f"Claude's Thinking (Loop {loop_count})",
-                        border_style="blue"
-                    ))
+                if hasattr(thinking_block, "thinking"):
+                    console.print(
+                        Panel(
+                            thinking_block.thinking,
+                            title=f"Claude's Thinking (Loop {loop_count})",
+                            border_style="blue",
+                        )
+                    )
                 else:
-                    console.print(Panel(
-                        "Claude is thinking...",
-                        title=f"Claude's Thinking (Loop {loop_count})",
-                        border_style="blue"
-                    ))
+                    console.print(
+                        Panel(
+                            "Claude is thinking...",
+                            title=f"Claude's Thinking (Loop {loop_count})",
+                            border_style="blue",
+                        )
+                    )
             elif content_block.type == "tool_use":
                 tool_use_block = content_block
                 tool_use_count += 1
             elif content_block.type == "text":
                 text_block = content_block
-        
+
         # If we got a final text response with no tool use, we're done
         if text_block and not tool_use_block:
             thinking_end_time = time.time()
             thinking_duration = thinking_end_time - thinking_start_time
-            
-            console.print(f"\n[bold green]Completed in {thinking_duration:.2f} seconds after {loop_count} loops and {tool_use_count} tool uses[/bold green]")
-            
+
+            console.print(
+                f"\n[bold green]Completed in {thinking_duration:.2f} seconds after {loop_count} loops and {tool_use_count} tool uses[/bold green]"
+            )
+
             # Print token usage summary
             console.print(f"[bold blue]Token Usage:[/bold blue]")
             console.print(f"Total input tokens: {input_tokens_total}")
             console.print(f"Total output tokens: {output_tokens_total}")
             console.print(f"Total tokens: {input_tokens_total + output_tokens_total}")
-            
+
             # Add the response to messages
-            messages.append({
-                "role": "assistant",
-                "content": [
-                    *([thinking_block] if thinking_block else []),
-                    {"type": "text", "text": text_block.text}
-                ]
-            })
-            
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": [
+                        *([thinking_block] if thinking_block else []),
+                        {"type": "text", "text": text_block.text},
+                    ],
+                }
+            )
+
             return text_block.text, input_tokens_total, output_tokens_total
-        
+
         # Handle tool use
         if tool_use_block:
             # Add the assistant's response to messages before handling tool calls
-            messages.append({
-                "role": "assistant",
-                "content": response.content
-            })
-            
-            console.print(f"\n[bold blue]Tool Call:[/bold blue] {tool_use_block.name}({json.dumps(tool_use_block.input)})")
-            
+            messages.append({"role": "assistant", "content": response.content})
+
+            console.print(
+                f"\n[bold blue]Tool Call:[/bold blue] {tool_use_block.name}({json.dumps(tool_use_block.input)})"
+            )
+
             # Handle the tool use
             tool_result = handle_tool_use(tool_use_block.input)
-            
+
             # Log tool result
             result_text = tool_result.get("error") or tool_result.get("result", "")
-            console.print(f"[green]Tool Result:[/green] {result_text}")
-            
+            # console.print(f"[green]Tool Result:[/green] {result_text}")
+
             # Format tool result for Claude
             tool_result_message = {
                 "role": "user",
@@ -579,73 +603,107 @@ Please use the text editor tool to help me with this. First, think through what 
                     {
                         "type": "tool_result",
                         "tool_use_id": tool_use_block.id,
-                        "content": result_text
+                        "content": result_text,
                     }
-                ]
+                ],
             }
             messages.append(tool_result_message)
-    
+
     # If we reach here, we hit the max loops
-    console.print(f"\n[bold red]Warning: Reached maximum loops ({max_loops}) without completing the task[/bold red]")
-    return "I wasn't able to complete the task within the allowed number of thinking steps. Please try a more specific prompt or increase the loop limit.", input_tokens_total, output_tokens_total
+    console.print(
+        f"\n[bold red]Warning: Reached maximum loops ({max_loops}) without completing the task[/bold red]"
+    )
+    return (
+        "I wasn't able to complete the task within the allowed number of thinking steps. Please try a more specific prompt or increase the loop limit.",
+        input_tokens_total,
+        output_tokens_total,
+    )
 
 
 def main():
     # Set up argument parser
     parser = argparse.ArgumentParser(description="Claude 3.7 File Editor Agent")
-    parser.add_argument("--prompt", "-p", required=True, help="The prompt for what file operations to perform")
-    parser.add_argument("--max-loops", "-l", type=int, default=15, help="Maximum number of tool use loops (default: 15)")
-    parser.add_argument("--thinking", "-t", type=int, default=DEFAULT_THINKING_TOKENS, help=f"Maximum thinking tokens (default: {DEFAULT_THINKING_TOKENS})")
-    parser.add_argument("--efficient", "-e", action="store_true", help="Enable token-efficient tool use (reduces token usage and latency)")
+    parser.add_argument(
+        "--prompt",
+        "-p",
+        required=True,
+        help="The prompt for what file operations to perform",
+    )
+    parser.add_argument(
+        "--max-loops",
+        "-l",
+        type=int,
+        default=15,
+        help="Maximum number of tool use loops (default: 15)",
+    )
+    parser.add_argument(
+        "--thinking",
+        "-t",
+        type=int,
+        default=DEFAULT_THINKING_TOKENS,
+        help=f"Maximum thinking tokens (default: {DEFAULT_THINKING_TOKENS})",
+    )
+    parser.add_argument(
+        "--efficient",
+        "-e",
+        action="store_true",
+        help="Enable token-efficient tool use (reduces token usage and latency)",
+    )
     args = parser.parse_args()
-    
+
     # Make sure agent_workspace directory exists
     console.log(f"[main] Creating workspace directory: {WORKSPACE_DIR}")
     os.makedirs(WORKSPACE_DIR, exist_ok=True)
-    
+
     # Get API key
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
-        console.print("[red]Error: ANTHROPIC_API_KEY environment variable is not set[/red]")
-        console.print("Please set it with: export ANTHROPIC_API_KEY='your-api-key-here'")
+        console.print(
+            "[red]Error: ANTHROPIC_API_KEY environment variable is not set[/red]"
+        )
+        console.print(
+            "Please set it with: export ANTHROPIC_API_KEY='your-api-key-here'"
+        )
         console.log("[main] Error: ANTHROPIC_API_KEY environment variable is not set")
         sys.exit(1)
-    
+
     # Initialize Anthropic client
     client = Anthropic(api_key=api_key)
     console.log("[main] Initialized Anthropic client")
-    
-    console.print(Panel.fit(
-        "Claude 3.7 File Editor Agent",
-        subtitle="Powered by Anthropic Claude 3.7 Sonnet"
-    ))
-    
+
+    console.print(
+        Panel.fit(
+            "Claude 3.7 File Editor Agent",
+            subtitle="Powered by Anthropic Claude 3.7 Sonnet",
+        )
+    )
+
     console.print(f"\n[bold]Prompt:[/bold] {args.prompt}\n")
     console.print(f"[dim]Thinking tokens: {args.thinking}[/dim]")
     console.print(f"[dim]Max loops: {args.max_loops}[/dim]\n")
-    console.log(f"[main] Starting agent with: prompt='{args.prompt}', thinking={args.thinking}, max_loops={args.max_loops}, efficient={args.efficient}")
-    
+    console.log(
+        f"[main] Starting agent with: prompt='{args.prompt}', thinking={args.thinking}, max_loops={args.max_loops}, efficient={args.efficient}"
+    )
+
     try:
         # Run the agent
         response, input_tokens, output_tokens = run_agent(
-            client, 
-            args.prompt, 
-            args.thinking, 
-            args.max_loops,
-            args.efficient
+            client, args.prompt, args.thinking, args.max_loops, args.efficient
         )
-        
+
         # Print the final response
         console.print(Panel(Markdown(response), title="Claude's Response"))
-        
+
         # Print token efficiency metric
         token_ratio = output_tokens / input_tokens if input_tokens > 0 else 0
         console.print(f"\n[bold magenta]Token Efficiency:[/bold magenta]")
         console.print(f"Input tokens: {input_tokens}")
         console.print(f"Output tokens: {output_tokens}")
         console.print(f"Output/Input ratio: {token_ratio:.2f}")
-        console.log(f"[main] Token usage: input={input_tokens}, output={output_tokens}, ratio={token_ratio:.2f}")
-        
+        console.log(
+            f"[main] Token usage: input={input_tokens}, output={output_tokens}, ratio={token_ratio:.2f}"
+        )
+
         if args.efficient:
             console.print("[cyan]Token-efficient tools were requested[/cyan]")
             console.print("[yellow]Note: Full support requires the beta SDK[/yellow]")
@@ -653,7 +711,7 @@ def main():
         else:
             console.print("[yellow]Standard tool calling was used[/yellow]")
             console.log("[main] Standard tool calling was used")
-        
+
     except Exception as e:
         console.print(f"[red]Error: {str(e)}[/red]")
         console.log(f"[main] Error: {str(e)}")
