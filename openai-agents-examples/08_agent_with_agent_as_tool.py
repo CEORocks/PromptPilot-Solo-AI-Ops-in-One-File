@@ -15,7 +15,7 @@ This example demonstrates how to use an agent as a tool for another agent.
 It shows how to create a research agent that can be used as a tool by a blog writer agent.
 
 Run with:
-    uv run 08_agent_with_agent_as_tool.py --prompt "Write a blog post about quantum computing"
+    uv run 08_agent_with_agent_as_tool.py --prompt "Write a blog post about music theory"
 
 Test with:
     uv run pytest 08_agent_with_agent_as_tool.py
@@ -36,10 +36,11 @@ from agents import Agent, Runner
 # Initialize console for rich output
 console = Console()
 
+
 def create_research_agent() -> Agent:
     """
     Create a research agent that can gather information on topics.
-    
+
     Returns:
         An Agent instance specialized in research.
     """
@@ -50,20 +51,21 @@ def create_research_agent() -> Agent:
     Always cite your sources if you're providing specific facts or quotes.
     Focus on providing high-quality, reliable information that would be useful for content creation.
     """
-    
+
     return Agent(
         name="ResearchSpecialist",
         instructions=instructions,
         model="gpt-4o-mini",
     )
 
+
 def create_blog_writer_agent(research_agent: Agent) -> Agent:
     """
     Create a blog writer agent that can use a research agent as a tool.
-    
+
     Args:
         research_agent: The research agent to use as a tool
-        
+
     Returns:
         An Agent instance specialized in blog writing with research capabilities
     """
@@ -74,65 +76,77 @@ def create_blog_writer_agent(research_agent: Agent) -> Agent:
     Use the research tool available to you to gather accurate information on topics.
     Incorporate the research seamlessly into your writing while maintaining your voice.
     """
-    
+
     # Convert the research agent into a tool
     research_tool = research_agent.as_tool(
         tool_name="research_topic",
-        tool_description="Research a specific topic to gather accurate information. Provide a clear, specific topic or question to research."
+        tool_description="Research a specific topic to gather accurate information. Provide a clear, specific topic or question to research.",
     )
-    
+
     return Agent(
         name="BlogWriter",
         instructions=instructions,
         model="gpt-4o-mini",
-        tools=[research_tool]
+        tools=[research_tool],
     )
+
 
 async def run_blog_writer_system(prompt: str) -> str:
     """
     Run the blog writer system with the given prompt.
-    
+
     Args:
         prompt: The topic or request for a blog post
-        
+
     Returns:
         The blog post content
     """
     # Create the research agent
     research_agent = create_research_agent()
-    
+
     # Create the blog writer agent with the research agent as a tool
     blog_writer = create_blog_writer_agent(research_agent)
-    
+
     # Run the blog writer agent with the prompt
     result = await Runner.run(blog_writer, prompt)
-    
+
     # Return the blog post
     return result.final_output
+
 
 def main():
     """Main function to parse arguments and run the blog writer system."""
     parser = argparse.ArgumentParser(description="Agent with Agent as Tool Example")
-    parser.add_argument("--prompt", "-p", type=str, required=True, 
-                        help="The topic or request for a blog post")
-    
+    parser.add_argument(
+        "--prompt",
+        "-p",
+        type=str,
+        required=True,
+        help="The topic or request for a blog post",
+    )
+
     args = parser.parse_args()
-    
+
     # Ensure API key is available
     if not os.environ.get("OPENAI_API_KEY"):
-        console.print(Panel("[bold red]Error: OPENAI_API_KEY environment variable not set[/bold red]"))
+        console.print(
+            Panel(
+                "[bold red]Error: OPENAI_API_KEY environment variable not set[/bold red]"
+            )
+        )
         sys.exit(1)
-    
+
     try:
         # Run the blog writer system and get the blog post
         blog_post = asyncio.run(run_blog_writer_system(args.prompt))
-        
+
         # Display the blog post
         console.print(Panel(blog_post, title="Blog Post", border_style="green"))
-    
+
     except Exception as e:
         console.print(Panel(f"[bold red]Error: {str(e)}[/bold red]"))
         sys.exit(1)
+
 
 # Test functions
 def test_create_research_agent():
@@ -142,32 +156,40 @@ def test_create_research_agent():
     assert "research specialist" in agent.instructions.lower()
     assert agent.model == "gpt-4o-mini"
 
+
 def test_create_blog_writer_agent():
     """Test that the blog writer agent is created with the correct configuration."""
     research_agent = create_research_agent()
     blog_writer = create_blog_writer_agent(research_agent)
-    
+
     assert blog_writer.name == "BlogWriter"
     assert "blog writer" in blog_writer.instructions.lower()
     assert len(blog_writer.tools) == 1
     assert blog_writer.tools[0].name == "research_topic"
 
+
 def test_run_blog_writer_system():
     """Test that the blog writer system can run and produce a blog post."""
     import pytest
-    
+
     # Skip this test if no API key is available
     if not os.environ.get("OPENAI_API_KEY"):
         pytest.skip("OPENAI_API_KEY not set")
-    
+
     # Run a test query for a simple blog post
-    blog_post = asyncio.run(run_blog_writer_system("Write a short blog post about artificial intelligence"))
-    
+    blog_post = asyncio.run(
+        run_blog_writer_system("Write a short blog post about artificial intelligence")
+    )
+
     # Verify we got a non-empty blog post
     assert blog_post
     assert len(blog_post) > 0
     # The blog post should contain relevant terms
-    assert any(term in blog_post.lower() for term in ["ai", "artificial intelligence", "technology"])
+    assert any(
+        term in blog_post.lower()
+        for term in ["ai", "artificial intelligence", "technology"]
+    )
+
 
 if __name__ == "__main__":
     main()
