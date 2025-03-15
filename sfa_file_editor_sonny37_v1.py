@@ -2,7 +2,7 @@
 
 # /// script
 # dependencies = [
-#   "anthropic>=0.18.0",
+#   "anthropic>=0.49.0",
 #   "rich>=13.7.0",
 # ]
 # ///
@@ -12,6 +12,9 @@
 
 # View a file
 uv run sfa_file_editor_sonny37_v1.py --prompt "Show me the content of README.md"
+
+# Use token-efficient tools (reduces token usage by ~14% on average)
+uv run sfa_file_editor_sonny37_v1.py --prompt "Read the first 20 lines of content from README.md and summarize into a new README_SUMMARY.md" --efficiency
 
 # Edit a file
 uv run sfa_file_editor_sonny37_v1.py --prompt "Fix the syntax error in sfa_poc.py"
@@ -40,6 +43,12 @@ uv run sfa_file_editor_sonny37_v1.py --prompt "Refactor README.md to make it mor
 # Increase max loops for complex tasks
 uv run sfa_file_editor_sonny37_v1.py --prompt "Create a Python class that implements a binary search tree with insert, delete, and search methods" --max-loops 20
 
+# Combine multiple flags
+
+uv run sfa_file_editor_sonny37_v1.py --prompt "Create a Flask API with 3 endpoints inside of agent_workspace/api_server.py" --thinking 6000 --max-loops 25
+
+uv run sfa_file_editor_sonny37_v1.py --prompt "Create a Flask API with 3 endpoints inside of agent_workspace/api_server.py" --efficiency --thinking 6000 --max-loops 25
+
 ///
 """
 
@@ -49,7 +58,7 @@ import argparse
 import time
 import json
 import traceback
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Union
 from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
@@ -456,6 +465,7 @@ def run_agent(
     prompt: str,
     max_thinking_tokens: int = DEFAULT_THINKING_TOKENS,
     max_loops: int = 10,
+    use_token_efficiency: bool = False,
 ) -> tuple[str, int, int]:
     """
     Run the Claude agent with file editing capabilities.
@@ -465,6 +475,7 @@ def run_agent(
         prompt: The user's prompt
         max_thinking_tokens: Maximum tokens for thinking
         max_loops: Maximum number of tool use loops
+        use_token_efficiency: Whether to use token-efficient tool use beta feature
 
     Returns:
         Tuple containing:
@@ -519,7 +530,14 @@ Please use the text editor tool to help me with this. First, think through what 
             "thinking": {"type": "enabled", "budget_tokens": max_thinking_tokens},
         }
 
-        response = client.messages.create(**message_args)
+        # Use the beta.messages with betas parameter if token efficiency is enabled
+        if use_token_efficiency:
+            # Using token-efficient tools beta feature
+            message_args["betas"] = ["token-efficient-tools-2025-02-19"]
+            response = client.beta.messages.create(**message_args)
+        else:
+            # Standard approach
+            response = client.messages.create(**message_args)
 
         # Track token usage
         if hasattr(response, "usage"):
@@ -652,6 +670,12 @@ def main():
         default=DEFAULT_THINKING_TOKENS,
         help=f"Maximum thinking tokens (default: {DEFAULT_THINKING_TOKENS})",
     )
+    parser.add_argument(
+        "--efficiency",
+        "-e",
+        action="store_true",
+        help="Enable token-efficient tool use (beta feature)",
+    )
     args = parser.parse_args()
 
     # Get API key
@@ -673,12 +697,16 @@ def main():
 
     console.print(f"\n[bold]Prompt:[/bold] {args.prompt}\n")
     console.print(f"[dim]Thinking tokens: {args.thinking}[/dim]")
-    console.print(f"[dim]Max loops: {args.max_loops}[/dim]\n")
+    console.print(f"[dim]Max loops: {args.max_loops}[/dim]")
+    if args.efficiency:
+        console.print(f"[dim]Token-efficient tools: Enabled[/dim]\n")
+    else:
+        console.print(f"[dim]Token-efficient tools: Disabled[/dim]\n")
 
     try:
         # Run the agent
         response, input_tokens, output_tokens = run_agent(
-            client, args.prompt, args.thinking, args.max_loops
+            client, args.prompt, args.thinking, args.max_loops, args.efficiency
         )
 
         # Print the final response
