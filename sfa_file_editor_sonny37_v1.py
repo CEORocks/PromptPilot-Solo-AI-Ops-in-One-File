@@ -126,6 +126,11 @@ def normalize_path(path: str) -> str:
     if os.name == "nt" and len(path) > 1 and path[1] == ":":
         is_windows_path = True
 
+    # Handle /repo/ paths from Claude (tool use convention)
+    if path.startswith("/repo/"):
+        path = os.path.join(os.getcwd(), path[6:])
+        return path
+
     if path.startswith("/"):
         # Handle case when Claude provides paths with leading slash
         if path == "/" or path == "/.":
