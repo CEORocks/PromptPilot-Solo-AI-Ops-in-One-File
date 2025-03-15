@@ -52,11 +52,14 @@ import argparse
 import time
 import json
 import traceback
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
 from rich.syntax import Syntax
+from rich.table import Table
+from rich.style import Style
+from rich.align import Align
 from anthropic import Anthropic
 
 # Initialize rich console
@@ -65,9 +68,42 @@ console = Console()
 # Define constants
 MODEL = "claude-3-7-sonnet-20250219"
 DEFAULT_THINKING_TOKENS = 3000
-WORKSPACE_DIR = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "agent_workspace"
-)
+
+
+def display_token_usage(
+    input_tokens: int, output_tokens: int, efficient_tools_enabled: bool = False
+) -> None:
+    """
+    Display token usage information in a rich formatted table
+
+    Args:
+        input_tokens: Number of input tokens used
+        output_tokens: Number of output tokens used
+        efficient_tools_enabled: Whether token-efficient tools were used
+    """
+    total_tokens = input_tokens + output_tokens
+    token_ratio = output_tokens / input_tokens if input_tokens > 0 else 0
+
+    # Create a table for token usage
+    table = Table(title="Token Usage Statistics", expand=True)
+
+    # Add columns with proper styling
+    table.add_column("Metric", style="cyan", no_wrap=True)
+    table.add_column("Count", style="magenta", justify="right")
+    table.add_column("Percentage", justify="right")
+
+    # Add rows with data
+    table.add_row(
+        "Input Tokens", f"{input_tokens:,}", f"{input_tokens/total_tokens:.1%}"
+    )
+    table.add_row(
+        "Output Tokens", f"{output_tokens:,}", f"{output_tokens/total_tokens:.1%}"
+    )
+    table.add_row("Total Tokens", f"{total_tokens:,}", "100.0%")
+    table.add_row("Output/Input Ratio", f"{token_ratio:.2f}", "")
+
+    console.print()
+    console.print(table)
 
 
 def normalize_path(path: str) -> str:
@@ -98,20 +134,12 @@ def normalize_path(path: str) -> str:
         else:
             # Replace leading slash with current working directory
             path = os.path.join(os.getcwd(), path[1:])
-        console.log(f"[normalize_path] Replaced leading slash with CWD: {path}")
     elif path.startswith("./"):
         # Handle relative paths starting with ./
         path = os.path.join(os.getcwd(), path[2:])
-        console.log(f"[normalize_path] Converted ./ path to absolute: {path}")
     elif not os.path.isabs(path) and not is_windows_path:
         # For non-absolute paths that aren't Windows paths either
-        path = os.path.join(WORKSPACE_DIR, path)
-        console.log(f"[normalize_path] Normalized relative path to: {path}")
-    elif path.startswith("/agent_workspace/"):
-        # Handle the case when Claude uses "/agent_workspace/" prefix
-        relative_path = path.replace("/agent_workspace/", "", 1)
-        path = os.path.join(WORKSPACE_DIR, relative_path)
-        console.log(f"[normalize_path] Normalized agent_workspace path to: {path}")
+        path = os.path.join(os.getcwd(), path)
 
     return path
 
@@ -561,12 +589,6 @@ Please use the text editor tool to help me with this. First, think through what 
                 f"\n[bold green]Completed in {thinking_duration:.2f} seconds after {loop_count} loops and {tool_use_count} tool uses[/bold green]"
             )
 
-            # Print token usage summary
-            console.print(f"[bold blue]Token Usage:[/bold blue]")
-            console.print(f"Total input tokens: {input_tokens_total}")
-            console.print(f"Total output tokens: {output_tokens_total}")
-            console.print(f"Total tokens: {input_tokens_total + output_tokens_total}")
-
             # Add the response to messages
             messages.append(
                 {
@@ -651,10 +673,6 @@ def main():
     )
     args = parser.parse_args()
 
-    # Make sure agent_workspace directory exists
-    console.log(f"[main] Creating workspace directory: {WORKSPACE_DIR}")
-    os.makedirs(WORKSPACE_DIR, exist_ok=True)
-
     # Get API key
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
@@ -669,21 +687,12 @@ def main():
 
     # Initialize Anthropic client
     client = Anthropic(api_key=api_key)
-    console.log("[main] Initialized Anthropic client")
 
-    console.print(
-        Panel.fit(
-            "Claude 3.7 File Editor Agent",
-            subtitle="Powered by Anthropic Claude 3.7 Sonnet",
-        )
-    )
+    console.print(Panel.fit("Claude 3.7 File Editor Agent"))
 
     console.print(f"\n[bold]Prompt:[/bold] {args.prompt}\n")
     console.print(f"[dim]Thinking tokens: {args.thinking}[/dim]")
     console.print(f"[dim]Max loops: {args.max_loops}[/dim]\n")
-    console.log(
-        f"[main] Starting agent with: prompt='{args.prompt}', thinking={args.thinking}, max_loops={args.max_loops}, efficient={args.efficient}"
-    )
 
     try:
         # Run the agent
@@ -694,23 +703,20 @@ def main():
         # Print the final response
         console.print(Panel(Markdown(response), title="Claude's Response"))
 
-        # Print token efficiency metric
-        token_ratio = output_tokens / input_tokens if input_tokens > 0 else 0
-        console.print(f"\n[bold magenta]Token Efficiency:[/bold magenta]")
-        console.print(f"Input tokens: {input_tokens}")
-        console.print(f"Output tokens: {output_tokens}")
-        console.print(f"Output/Input ratio: {token_ratio:.2f}")
-        console.log(
-            f"[main] Token usage: input={input_tokens}, output={output_tokens}, ratio={token_ratio:.2f}"
-        )
+        # Display token usage with rich table
+        display_token_usage(input_tokens, output_tokens, args.efficient)
 
+        # Add note about beta SDK if efficient tools were requested
         if args.efficient:
-            console.print("[cyan]Token-efficient tools were requested[/cyan]")
-            console.print("[yellow]Note: Full support requires the beta SDK[/yellow]")
+            console.print(
+                "[yellow]Note: Full support for token-efficient tools requires the beta SDK[/yellow]"
+            )
             console.log("[main] Token-efficient tools were requested")
-        else:
-            console.print("[yellow]Standard tool calling was used[/yellow]")
-            console.log("[main] Standard tool calling was used")
+
+        # Log token usage summary
+        console.log(
+            f"[main] Token usage: input={input_tokens}, output={output_tokens}, ratio={output_tokens/input_tokens if input_tokens > 0 else 0:.2f}"
+        )
 
     except Exception as e:
         console.print(f"[red]Error: {str(e)}[/red]")
