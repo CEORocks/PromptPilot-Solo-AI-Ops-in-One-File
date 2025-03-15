@@ -40,9 +40,6 @@ uv run sfa_file_editor_sonny37_v1.py --prompt "Refactor README.md to make it mor
 # Increase max loops for complex tasks
 uv run sfa_file_editor_sonny37_v1.py --prompt "Create a Python class that implements a binary search tree with insert, delete, and search methods" --max-loops 20
 
-# Use token-efficient tools (reduces token usage and latency)
-uv run sfa_file_editor_sonny37_v1.py --prompt "Add error handling to all functions in sfa_poc.py" --efficient
-
 ///
 """
 
@@ -70,16 +67,13 @@ MODEL = "claude-3-7-sonnet-20250219"
 DEFAULT_THINKING_TOKENS = 3000
 
 
-def display_token_usage(
-    input_tokens: int, output_tokens: int, efficient_tools_enabled: bool = False
-) -> None:
+def display_token_usage(input_tokens: int, output_tokens: int) -> None:
     """
     Display token usage information in a rich formatted table
 
     Args:
         input_tokens: Number of input tokens used
         output_tokens: Number of output tokens used
-        efficient_tools_enabled: Whether token-efficient tools were used
     """
     total_tokens = input_tokens + output_tokens
     token_ratio = output_tokens / input_tokens if input_tokens > 0 else 0
@@ -462,7 +456,6 @@ def run_agent(
     prompt: str,
     max_thinking_tokens: int = DEFAULT_THINKING_TOKENS,
     max_loops: int = 10,
-    use_efficient_tools: bool = False,
 ) -> tuple[str, int, int]:
     """
     Run the Claude agent with file editing capabilities.
@@ -472,7 +465,6 @@ def run_agent(
         prompt: The user's prompt
         max_thinking_tokens: Maximum tokens for thinking
         max_loops: Maximum number of tool use loops
-        use_efficient_tools: Whether to use token-efficient tool calling
 
     Returns:
         Tuple containing:
@@ -526,16 +518,6 @@ Please use the text editor tool to help me with this. First, think through what 
             "system": system_prompt,
             "thinking": {"type": "enabled", "budget_tokens": max_thinking_tokens},
         }
-
-        # Try to use token-efficient tools if requested
-        if use_efficient_tools:
-            console.print(
-                "[cyan]Token-efficient tools were requested but may not be available in the current SDK[/cyan]"
-            )
-            # Add a note about the attempted usage, but this feature likely requires an updated SDK
-            console.print(
-                "[yellow]Note: This feature likely requires the updated beta Anthropic SDK to work fully[/yellow]"
-            )
 
         response = client.messages.create(**message_args)
 
@@ -670,12 +652,6 @@ def main():
         default=DEFAULT_THINKING_TOKENS,
         help=f"Maximum thinking tokens (default: {DEFAULT_THINKING_TOKENS})",
     )
-    parser.add_argument(
-        "--efficient",
-        "-e",
-        action="store_true",
-        help="Enable token-efficient tool use (reduces token usage and latency)",
-    )
     args = parser.parse_args()
 
     # Get API key
@@ -702,26 +678,14 @@ def main():
     try:
         # Run the agent
         response, input_tokens, output_tokens = run_agent(
-            client, args.prompt, args.thinking, args.max_loops, args.efficient
+            client, args.prompt, args.thinking, args.max_loops
         )
 
         # Print the final response
         console.print(Panel(Markdown(response), title="Claude's Response"))
 
         # Display token usage with rich table
-        display_token_usage(input_tokens, output_tokens, args.efficient)
-
-        # Add note about beta SDK if efficient tools were requested
-        if args.efficient:
-            console.print(
-                "[yellow]Note: Full support for token-efficient tools requires the beta SDK[/yellow]"
-            )
-            console.log("[main] Token-efficient tools were requested")
-
-        # Log token usage summary
-        console.log(
-            f"[main] Token usage: input={input_tokens}, output={output_tokens}, ratio={output_tokens/input_tokens if input_tokens > 0 else 0:.2f}"
-        )
+        display_token_usage(input_tokens, output_tokens)
 
     except Exception as e:
         console.print(f"[red]Error: {str(e)}[/red]")
