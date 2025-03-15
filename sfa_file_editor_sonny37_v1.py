@@ -19,8 +19,29 @@ uv run sfa_file_editor_sonny37_v1.py --prompt "Fix the syntax error in sfa_poc.p
 # Create a new file
 uv run sfa_file_editor_sonny37_v1.py --prompt "Create a new file called hello.py with a function that prints Hello World"
 
+# Add docstrings to functions
+uv run sfa_file_editor_sonny37_v1.py --prompt "Add proper docstrings to all functions in sfa_poc.py"
+
+# Insert code at specific location
+uv run sfa_file_editor_sonny37_v1.py --prompt "Insert error handling code before the API call in sfa_duckdb_openai_v2.py"
+
+# Modify multiple files
+uv run sfa_file_editor_sonny37_v1.py --prompt "Update all print statements in agent_workspace directory to use f-strings"
+
+# Refactor code
+uv run sfa_file_editor_sonny37_v1.py --prompt "Refactor the factorial function in agent_workspace/test.py to use iteration instead of recursion"
+
+# Create new test files
+uv run sfa_file_editor_sonny37_v1.py --prompt "Create unit tests for the functions in sfa_file_editor_sonny37_v1.py and save them in agent_workspace/test_file_editor.py"
+
 # Run with higher thinking tokens
 uv run sfa_file_editor_sonny37_v1.py --prompt "Refactor README.md to make it more concise" --thinking 5000
+
+# Increase max loops for complex tasks
+uv run sfa_file_editor_sonny37_v1.py --prompt "Create a Python class that implements a binary search tree with insert, delete, and search methods" --max-loops 20
+
+# Use token-efficient tools (reduces token usage and latency)
+uv run sfa_file_editor_sonny37_v1.py --prompt "Add error handling to all functions in sfa_poc.py" --efficient
 
 ///
 """
@@ -255,7 +276,7 @@ def handle_tool_use(tool_use: Dict[str, Any]) -> Dict[str, Any]:
         return {"error": error_msg}
 
 
-def run_agent(client: Anthropic, prompt: str, max_thinking_tokens: int = DEFAULT_THINKING_TOKENS, max_loops: int = 10) -> str:
+def run_agent(client: Anthropic, prompt: str, max_thinking_tokens: int = DEFAULT_THINKING_TOKENS, max_loops: int = 10, use_efficient_tools: bool = False) -> str:
     """
     Run the Claude agent with file editing capabilities.
     
@@ -264,6 +285,7 @@ def run_agent(client: Anthropic, prompt: str, max_thinking_tokens: int = DEFAULT
         prompt: The user's prompt
         max_thinking_tokens: Maximum tokens for thinking
         max_loops: Maximum number of tool use loops
+        use_efficient_tools: Whether to use token-efficient tool calling
     
     Returns:
         Final response from Claude
@@ -306,17 +328,24 @@ Please use the text editor tool to help me with this. First, think through what 
         console.rule(f"[yellow]Agent Loop {loop_count}/{max_loops}[/yellow]")
         
         # Create message with text editor tool
-        response = client.messages.create(
-            model=MODEL,
-            max_tokens=4096,
-            tools=[text_editor_tool],
-            messages=messages,
-            system=system_prompt,
-            thinking={
+        message_args = {
+            "model": MODEL,
+            "max_tokens": 4096,
+            "tools": [text_editor_tool],
+            "messages": messages,
+            "system": system_prompt,
+            "thinking": {
                 "type": "enabled",
                 "budget_tokens": max_thinking_tokens
             }
-        )
+        }
+        
+        # Add beta header for token-efficient tools if enabled
+        if use_efficient_tools:
+            message_args["betas"] = ["token-efficient-tools-2025-02-19"]
+            console.print("[cyan]Using token-efficient tools[/cyan]")
+        
+        response = client.messages.create(**message_args)
         
         # Process response content
         thinking_block = None
@@ -415,6 +444,7 @@ def main():
     parser.add_argument("--prompt", required=True, help="The prompt for what file operations to perform")
     parser.add_argument("--max-loops", type=int, default=15, help="Maximum number of tool use loops (default: 15)")
     parser.add_argument("--thinking", type=int, default=DEFAULT_THINKING_TOKENS, help=f"Maximum thinking tokens (default: {DEFAULT_THINKING_TOKENS})")
+    parser.add_argument("--efficient", action="store_true", help="Enable token-efficient tool use (reduces token usage and latency)")
     args = parser.parse_args()
     
     # Make sure agent_workspace directory exists
@@ -441,7 +471,13 @@ def main():
     
     try:
         # Run the agent
-        response = run_agent(client, args.prompt, args.thinking, args.max_loops)
+        response = run_agent(
+            client, 
+            args.prompt, 
+            args.thinking, 
+            args.max_loops,
+            args.efficient
+        )
         
         # Print the final response
         console.print(Panel(Markdown(response), title="Claude's Response"))
