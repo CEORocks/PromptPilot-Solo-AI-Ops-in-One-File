@@ -276,7 +276,7 @@ def handle_tool_use(tool_use: Dict[str, Any]) -> Dict[str, Any]:
         return {"error": error_msg}
 
 
-def run_agent(client: Anthropic, prompt: str, max_thinking_tokens: int = DEFAULT_THINKING_TOKENS, max_loops: int = 10, use_efficient_tools: bool = False) -> str:
+def run_agent(client: Anthropic, prompt: str, max_thinking_tokens: int = DEFAULT_THINKING_TOKENS, max_loops: int = 10, use_efficient_tools: bool = False) -> tuple[str, int, int]:
     """
     Run the Claude agent with file editing capabilities.
     
@@ -288,8 +288,14 @@ def run_agent(client: Anthropic, prompt: str, max_thinking_tokens: int = DEFAULT
         use_efficient_tools: Whether to use token-efficient tool calling
     
     Returns:
-        Final response from Claude
+        Tuple containing:
+        - Final response from Claude (str)
+        - Total input tokens used (int)
+        - Total output tokens used (int)
     """
+    # Track token usage
+    input_tokens_total = 0
+    output_tokens_total = 0
     system_prompt = """You are a helpful AI assistant with text editing capabilities.
 You have access to a text editor tool that can view, edit, and create files.
 Always think step by step about what you need to do before taking any action.
@@ -340,12 +346,23 @@ Please use the text editor tool to help me with this. First, think through what 
             }
         }
         
-        # Add beta header for token-efficient tools if enabled
+        # Try to use token-efficient tools if requested
         if use_efficient_tools:
-            message_args["betas"] = ["token-efficient-tools-2025-02-19"]
-            console.print("[cyan]Using token-efficient tools[/cyan]")
+            console.print("[cyan]Token-efficient tools were requested but may not be available in the current SDK[/cyan]")
+            # Add a note about the attempted usage, but this feature likely requires an updated SDK
+            console.print("[yellow]Note: This feature likely requires the updated beta Anthropic SDK to work fully[/yellow]")
         
         response = client.messages.create(**message_args)
+        
+        # Track token usage
+        if hasattr(response, 'usage'):
+            input_tokens = getattr(response.usage, 'input_tokens', 0)
+            output_tokens = getattr(response.usage, 'output_tokens', 0)
+            
+            input_tokens_total += input_tokens
+            output_tokens_total += output_tokens
+            
+            console.print(f"[dim]Loop {loop_count} tokens: Input={input_tokens}, Output={output_tokens}[/dim]")
         
         # Process response content
         thinking_block = None
@@ -381,6 +398,12 @@ Please use the text editor tool to help me with this. First, think through what 
             
             console.print(f"\n[bold green]Completed in {thinking_duration:.2f} seconds after {loop_count} loops and {tool_use_count} tool uses[/bold green]")
             
+            # Print token usage summary
+            console.print(f"[bold blue]Token Usage:[/bold blue]")
+            console.print(f"Total input tokens: {input_tokens_total}")
+            console.print(f"Total output tokens: {output_tokens_total}")
+            console.print(f"Total tokens: {input_tokens_total + output_tokens_total}")
+            
             # Add the response to messages
             messages.append({
                 "role": "assistant",
@@ -390,7 +413,7 @@ Please use the text editor tool to help me with this. First, think through what 
                 ]
             })
             
-            return text_block.text
+            return text_block.text, input_tokens_total, output_tokens_total
         
         # Handle tool use
         if tool_use_block:
@@ -435,7 +458,7 @@ Please use the text editor tool to help me with this. First, think through what 
     
     # If we reach here, we hit the max loops
     console.print(f"\n[bold red]Warning: Reached maximum loops ({max_loops}) without completing the task[/bold red]")
-    return "I wasn't able to complete the task within the allowed number of thinking steps. Please try a more specific prompt or increase the loop limit."
+    return "I wasn't able to complete the task within the allowed number of thinking steps. Please try a more specific prompt or increase the loop limit.", input_tokens_total, output_tokens_total
 
 
 def main():
@@ -471,7 +494,7 @@ def main():
     
     try:
         # Run the agent
-        response = run_agent(
+        response, input_tokens, output_tokens = run_agent(
             client, 
             args.prompt, 
             args.thinking, 
@@ -481,6 +504,18 @@ def main():
         
         # Print the final response
         console.print(Panel(Markdown(response), title="Claude's Response"))
+        
+        # Print token efficiency metric
+        token_ratio = output_tokens / input_tokens if input_tokens > 0 else 0
+        console.print(f"\n[bold magenta]Token Efficiency:[/bold magenta]")
+        console.print(f"Input tokens: {input_tokens}")
+        console.print(f"Output tokens: {output_tokens}")
+        console.print(f"Output/Input ratio: {token_ratio:.2f}")
+        if args.efficient:
+            console.print("[cyan]Token-efficient tools were requested[/cyan]")
+            console.print("[yellow]Note: Full support requires the beta SDK[/yellow]")
+        else:
+            console.print("[yellow]Standard tool calling was used[/yellow]")
         
     except Exception as e:
         console.print(f"[red]Error: {str(e)}[/red]")
