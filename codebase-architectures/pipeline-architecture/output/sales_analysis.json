@@ -1,0 +1,124 @@
+{
+  "report_type": "detailed",
+  "generated_at": "2025-03-17T14:25:07.162838",
+  "data_source": "./data/sales_data.json",
+  "record_count": 6,
+  "data": [
+    {
+      "id": "S001",
+      "product": "Laptop",
+      "category": "Electronics",
+      "price": "$1299.99",
+      "quantity": 5,
+      "date": "2025-01-15",
+      "customer": "ABC Corp",
+      "discount": "10.0%"
+    },
+    {
+      "id": "S002",
+      "product": "Smartphone",
+      "category": "Electronics",
+      "price": "$899.99",
+      "quantity": 10,
+      "date": "2025-01-20",
+      "customer": "XYZ Ltd",
+      "discount": "5.0%"
+    },
+    {
+      "id": "S003",
+      "product": "Office Chair",
+      "category": "Furniture",
+      "price": "$249.99",
+      "quantity": 8,
+      "date": "2025-01-22",
+      "customer": "123 Industries",
+      "discount": "0.0%"
+    },
+    {
+      "id": "S004",
+      "product": "Desk",
+      "category": "Furniture",
+      "price": "$349.99",
+      "quantity": 4,
+      "date": "2025-01-25",
+      "customer": "ABC Corp",
+      "discount": "15.0%"
+    },
+    {
+      "id": "S005",
+      "product": "Monitor",
+      "category": "Electronics",
+      "price": "$499.99",
+      "quantity": 12,
+      "date": "2025-01-30",
+      "customer": "XYZ Ltd",
+      "discount": "10.0%"
+    },
+    {
+      "id": "S007",
+      "product": "Bookshelf",
+      "category": "Furniture",
+      "price": "$199.99",
+      "quantity": 6,
+      "date": "2025-02-10",
+      "customer": "ABC Corp",
+      "discount": "5.0%"
+    }
+  ],
+  "analysis": {
+    "statistics": {
+      "price": {
+        "count": 7,
+        "min": 199.99,
+        "max": 1299.99,
+        "sum": 3799.9300000000003,
+        "mean": 542.8471428571429,
+        "median": 349.99,
+        "std_dev": 408.68546527104377
+      },
+      "quantity": {
+        "count": 7,
+        "min": 3,
+        "max": 12,
+        "sum": 48,
+        "mean": 6.857142857142857,
+        "median": 6,
+        "std_dev": 3.2877840272018797
+      },
+      "discount": {
+        "count": 7,
+        "min": 0.0,
+        "max": 0.15,
+        "sum": 0.45,
+        "mean": 0.0642857142857143,
+        "median": 0.05,
+        "std_dev": 0.05563486402641868
+      }
+    }
+  },
+  "processing_info": {
+    "steps": [
+      "calculate_statistics",
+      "filter_data",
+      "transform_fields"
+    ],
+    "filters": [
+      {
+        "description": "High-value sales (>$1000)",
+        "original_count": 7,
+        "filtered_count": 6,
+        "removed_count": 1
+      }
+    ],
+    "transformations": [
+      {
+        "description": "Format price as currency and discount as percentage",
+        "fields_transformed": [
+          "price",
+          "discount"
+        ]
+      }
+    ],
+    "processing_time_seconds": 0.000299
+  }
+}
