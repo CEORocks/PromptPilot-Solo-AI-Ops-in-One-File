@@ -34,34 +34,18 @@ import sys
 import argparse
 from rich.console import Console
 from rich.panel import Panel
-from rich.table import Table
 
 # Add the current directory to the Python path to enable absolute imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Import the organism-level file agent
+from organism.file_agent import FileAgent
 
 # Initialize rich console
 console = Console()
 
 # Define constants
 DEFAULT_THINKING_TOKENS = 3000
-
-def display_token_usage(input_tokens: int, output_tokens: int) -> None:
-    """
-    Display token usage in a table.
-
-    Args:
-        input_tokens: Number of input tokens used
-        output_tokens: Number of output tokens used
-    """
-    table = Table(title="Token Usage")
-    table.add_column("Type", style="cyan")
-    table.add_column("Count", style="green")
-    
-    table.add_row("Input Tokens", str(input_tokens))
-    table.add_row("Output Tokens", str(output_tokens))
-    table.add_row("Total Tokens", str(input_tokens + output_tokens))
-    
-    console.print(table)
 
 def main():
     """Main entry point for the application."""
@@ -93,6 +77,11 @@ def main():
         action="store_true",
         help="Enable token-efficient tool use (beta feature)",
     )
+    parser.add_argument(
+        "--api-key",
+        type=str,
+        help="API key for Anthropic (defaults to ANTHROPIC_API_KEY environment variable)",
+    )
     args = parser.parse_args()
 
     console.print(Panel.fit("Claude 3.7 File Editor Agent (Atomic/Composable Architecture)"))
@@ -105,13 +94,13 @@ def main():
     else:
         console.print(f"[dim]Token-efficient tools: Disabled[/dim]\n")
 
-    # For testing purposes, we'll just print a success message
-    console.print("[green]Successfully loaded the Atomic/Composable Architecture implementation![/green]")
-    console.print("[yellow]This is a mock implementation for testing the architecture structure.[/yellow]")
-    console.print("[yellow]In a real implementation, this would connect to the Claude API.[/yellow]")
-
-    # Display mock token usage
-    display_token_usage(1000, 500)
+    # Run the file editor agent
+    FileAgent.run(
+        prompt=args.prompt,
+        api_key=args.api_key,
+        max_tool_use_loops=args.max_loops,
+        token_efficient_tool_use=args.efficiency
+    )
 
 if __name__ == "__main__":
     main()

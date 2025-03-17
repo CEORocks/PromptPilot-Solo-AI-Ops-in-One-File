@@ -6,7 +6,7 @@ This module combines atomic components to provide file editing capabilities.
 """
 
 import time
-from typing import Tuple, Dict, Any, List, Optional
+from typing import Tuple, Dict, Any, List, Optional, Callable
 from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
@@ -227,3 +227,37 @@ Please use the text editor tool to help me with this. First, think through what 
             input_tokens_total,
             output_tokens_total,
         )
+
+# Expose the run_agent function at the module level
+def run_agent(
+    client: Anthropic,
+    prompt: str,
+    handle_tool_use: Callable[[Dict[str, Any]], Dict[str, Any]],
+    max_tool_use_loops: int = 15,
+    token_efficient_tool_use: bool = True,
+) -> Tuple[int, int]:
+    """
+    Run the file editor agent with the specified prompt.
+    
+    Args:
+        client: The Anthropic client
+        prompt: The prompt to send to Claude
+        handle_tool_use: Function to handle tool use requests
+        max_tool_use_loops: Maximum number of tool use loops
+        token_efficient_tool_use: Whether to use token-efficient tool use
+        
+    Returns:
+        Tuple containing input and output token counts
+    """
+    log_info("file_editor", f"Running agent with prompt: {prompt}")
+    
+    _, input_tokens, output_tokens = FileEditor.run_agent(
+        client=client,
+        prompt=prompt,
+        handle_tool_use_func=handle_tool_use,
+        max_loops=max_tool_use_loops,
+        use_token_efficiency=token_efficient_tool_use,
+        max_thinking_tokens=DEFAULT_THINKING_TOKENS
+    )
+    
+    return input_tokens, output_tokens
