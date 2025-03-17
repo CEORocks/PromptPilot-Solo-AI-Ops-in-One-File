@@ -39,7 +39,7 @@ from rich.panel import Panel
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Import the organism-level file agent
-from organism.file_agent import FileAgent
+from membrane.main_file_agent import FileAgent
 
 # Initialize rich console
 console = Console()

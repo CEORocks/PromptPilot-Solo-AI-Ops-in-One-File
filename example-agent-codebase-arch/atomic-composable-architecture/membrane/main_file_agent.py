@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import anthropic
 from molecule.file_crud import FileCRUD
-from organism.file_editor import run_agent
+from organism.file_agent import run_agent
 from atom.logging.console import log_info, log_error, log_warning
 from atom.logging.display import display_token_usage
 
