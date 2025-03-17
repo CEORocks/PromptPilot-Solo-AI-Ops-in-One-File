@@ -39,6 +39,8 @@ from rich.table import Table
 # Add the current directory to the Python path to enable absolute imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from pipeline_manager.file_editor_pipeline import FileEditorPipeline
+
 # Initialize rich console
 console = Console()
 
@@ -104,6 +106,9 @@ def main():
         console.print(f"[dim]Token-efficient tools: Enabled[/dim]\n")
     else:
         console.print(f"[dim]Token-efficient tools: Disabled[/dim]\n")
+
+    # Initialize the file editor pipeline
+    pipeline = FileEditorPipeline()
 
     # For testing purposes, we'll just print a success message
     console.print("[green]Successfully loaded the Pipeline Architecture implementation![/green]")

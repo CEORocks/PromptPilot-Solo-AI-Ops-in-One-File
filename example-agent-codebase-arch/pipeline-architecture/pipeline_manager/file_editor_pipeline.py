@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from pipeline_manager.pipeline_manager import Pipeline
 from steps.input_stage import InputStage
-from steps.processing_stage import ProcessingStage
+from steps.command_router import CommandRouter
 from steps.output_stage import OutputStage
 
 # Initialize rich console
@@ -33,7 +33,7 @@ class FileEditorPipeline:
         """
         # Create pipeline stages
         self.input_stage = InputStage()
-        self.processing_stage = ProcessingStage()
+        self.command_router = CommandRouter()
         self.output_stage = OutputStage()
         
         # Create and configure pipeline
@@ -41,7 +41,7 @@ class FileEditorPipeline:
         
         # Add stages
         self.pipeline.add_stage("input", self.input_stage)
-        self.pipeline.add_stage("processing", self.processing_stage)
+        self.pipeline.add_stage("command_router", self.command_router)
         self.pipeline.add_stage("output", self.output_stage)
         
         console.log("[file_editor_pipeline] Initialized file editor pipeline")
