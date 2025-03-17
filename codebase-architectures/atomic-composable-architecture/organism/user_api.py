@@ -7,7 +7,7 @@ This module combines user_management capability with HTTP endpoints.
 
 from typing import Dict, Optional
 
-from capabilities.user_management import (
+from molecule.user_management import (
     register_new_user, login_user, validate_user_token,
     logout_user, update_user_profile, change_password
 )

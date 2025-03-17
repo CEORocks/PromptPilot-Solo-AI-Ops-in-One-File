@@ -7,11 +7,11 @@ This module combines alerting capability with HTTP endpoints.
 
 from typing import Dict, List, Optional
 
-from capabilities.alerting import (
+from molecule.alerting import (
     send_user_alert, get_user_alerts, mark_alert_as_read,
     mark_all_alerts_as_read, delete_user_alert, send_system_notification
 )
-from capabilities.user_management import validate_user_token
+from molecule.user_management import validate_user_token
 
 class AlertsAPI:
     """API endpoints for alerts management."""

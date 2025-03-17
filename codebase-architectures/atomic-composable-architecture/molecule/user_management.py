@@ -7,11 +7,11 @@ This capability combines auth and validation modules.
 
 from typing import Dict, List, Optional, Tuple
 
-from modules.auth import (
+from atom.auth import (
     register_user, authenticate, create_token, validate_token,
     revoke_token, get_user_by_id
 )
-from modules.validation import (
+from atom.validation import (
     validate_required_fields, validate_email, validate_username,
     validate_password_strength, validate_string_length
 )

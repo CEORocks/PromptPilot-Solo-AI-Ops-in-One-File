@@ -6,25 +6,25 @@ This directory demonstrates an Atomic/Composable Architecture implementation wit
 
 ```
 atomic-composable-architecture/
-├── modules/                    # Smallest atomic reusable building blocks
+├── atom/                       # Smallest atomic reusable building blocks
 │   ├── auth.py                 # Authentication utilities
 │   ├── validation.py           # Data validation functions
 │   └── notifications.py        # Notification helpers
 │
-├── capabilities/               # Combines multiple modules into features
-│   ├── user_management.py      # Uses auth + validation modules
-│   └── alerting.py             # Uses notifications + validation modules
+├── molecule/                   # Combines multiple atoms into features
+│   ├── user_management.py      # Uses auth + validation atoms
+│   └── alerting.py             # Uses notifications + validation atoms
 │
-└── endpoints/                  # Combines capabilities into user-facing APIs
-    ├── user_api.py             # Uses user_management capability
-    └── alerts_api.py           # Uses alerting capability
+└── organism/                   # Combines molecules into user-facing APIs
+    ├── user_api.py             # Uses user_management molecule
+    └── alerts_api.py           # Uses alerting molecule
 ```
 
 ## Explanation
 
-- **Atomic (modules)**: Bottom-level reusable components that must remain general-purpose and independent. Modules can only depend on other modules, not capabilities or endpoints.
-- **Capabilities**: Compose modules to build concrete functionality. Capabilities can depend on multiple modules, enabling reuse and rapid feature composition.
-- **Endpoints**: The highest level, combining capabilities to create user-facing APIs or interfaces.
+- **Atom**: Bottom-level reusable components that must remain general-purpose and independent. Atoms can only depend on other atoms, not molecules or organisms.
+- **Molecule**: Compose atoms to build concrete functionality. Molecules can depend on multiple atoms, enabling reuse and rapid feature composition.
+- **Organism**: The highest level, combining molecules to create user-facing APIs or interfaces.
 
 ## Benefits
 

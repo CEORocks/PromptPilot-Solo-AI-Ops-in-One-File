@@ -7,12 +7,12 @@ This capability combines notifications and validation modules.
 
 from typing import Dict, List, Optional, Tuple
 
-from modules.notifications import (
+from atom.notifications import (
     create_notification, get_user_notifications, mark_notification_as_read,
     mark_all_notifications_as_read, delete_notification, send_email_notification,
     send_sms_notification, create_alert
 )
-from modules.validation import (
+from atom.validation import (
     validate_required_fields, validate_email, validate_string_length
 )
 

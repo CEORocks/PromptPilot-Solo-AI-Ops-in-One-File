@@ -9,8 +9,8 @@
 Main application entry point for the Atomic/Composable Architecture example.
 """
 
-from endpoints.user_api import UserAPI
-from endpoints.alerts_api import AlertsAPI
+from organism.user_api import UserAPI
+from organism.alerts_api import AlertsAPI
 
 def display_header(text):
     """Display a header with the given text."""
