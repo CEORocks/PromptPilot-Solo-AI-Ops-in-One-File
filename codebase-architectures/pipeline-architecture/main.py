@@ -11,10 +11,10 @@ Main application entry point for the Pipeline Architecture example.
 
 import os
 import json
-from pipeline.input_stage import InputStage
-from pipeline.processing_stage import ProcessingStage
-from pipeline.output_stage import OutputStage
-from pipeline.pipeline_manager import DataProcessingPipeline
+from steps.input_stage import InputStage
+from steps.processing_stage import ProcessingStage
+from steps.output_stage import OutputStage
+from pipeline_manager.data_pipeline import DataProcessingPipeline
 from shared.utilities import format_currency, format_percentage
 
 def create_sample_data():

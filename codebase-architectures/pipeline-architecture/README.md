@@ -6,14 +6,22 @@ This directory demonstrates a Pipeline Architecture implementation with a simple
 
 ```
 pipeline-architecture/
-├── pipeline/
+├── steps/                       # Composable pipeline steps
 │   ├── input_stage.py           # Input parsing and preparation
 │   ├── processing_stage.py      # Core computation or transformation
-│   ├── output_stage.py          # Final formatting or response handling
-│   └── pipeline_manager.py      # Coordinates stage execution
+│   └── output_stage.py          # Final formatting or response handling
+├── pipeline_manager/            # Pipeline orchestration
+│   ├── pipeline_manager.py      # Base pipeline manager
+│   └── data_pipeline.py         # Data processing pipeline implementation
 └── shared/
     └── utilities.py             # Common utilities across pipeline
 ```
+
+This architecture follows a more functional approach, where:
+- Steps are composable, independent units that can be mixed and matched
+- Pipeline managers orchestrate the flow between steps
+- Different pipeline implementations can be created for specific use cases
+- Each step focuses on a single responsibility and can be tested in isolation
 
 ## Benefits
 
