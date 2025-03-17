@@ -1,0 +1,72 @@
+[
+  {
+    "id": "S001",
+    "product": "Laptop",
+    "category": "Electronics",
+    "price": 1299.99,
+    "quantity": 5,
+    "date": "2025-01-15",
+    "customer": "ABC Corp",
+    "discount": 0.1
+  },
+  {
+    "id": "S002",
+    "product": "Smartphone",
+    "category": "Electronics",
+    "price": 899.99,
+    "quantity": 10,
+    "date": "2025-01-20",
+    "customer": "XYZ Ltd",
+    "discount": 0.05
+  },
+  {
+    "id": "S003",
+    "product": "Office Chair",
+    "category": "Furniture",
+    "price": 249.99,
+    "quantity": 8,
+    "date": "2025-01-22",
+    "customer": "123 Industries",
+    "discount": 0.0
+  },
+  {
+    "id": "S004",
+    "product": "Desk",
+    "category": "Furniture",
+    "price": 349.99,
+    "quantity": 4,
+    "date": "2025-01-25",
+    "customer": "ABC Corp",
+    "discount": 0.15
+  },
+  {
+    "id": "S005",
+    "product": "Monitor",
+    "category": "Electronics",
+    "price": 499.99,
+    "quantity": 12,
+    "date": "2025-01-30",
+    "customer": "XYZ Ltd",
+    "discount": 0.1
+  },
+  {
+    "id": "S006",
+    "product": "Printer",
+    "category": "Electronics",
+    "price": 299.99,
+    "quantity": 3,
+    "date": "2025-02-05",
+    "customer": "123 Industries",
+    "discount": 0.0
+  },
+  {
+    "id": "S007",
+    "product": "Bookshelf",
+    "category": "Furniture",
+    "price": 199.99,
+    "quantity": 6,
+    "date": "2025-02-10",
+    "customer": "ABC Corp",
+    "discount": 0.05
+  }
+]
