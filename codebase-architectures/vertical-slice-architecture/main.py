@@ -11,6 +11,7 @@ Main application entry point for the Vertical Slice Architecture example.
 
 from features.users.api import UserAPI
 from features.tasks.api import TaskAPI
+from features.projects.api import ProjectAPI
 
 def display_header(text):
     """Display a header with the given text."""
@@ -83,6 +84,31 @@ def main():
     all_tasks = TaskAPI.get_all_tasks()
     for task in all_tasks:
         display_result(task)
+    
+    # Create a project
+    display_header("Creating a Project")
+    project = ProjectAPI.create_project("Task Management System", "A project for managing tasks", user1["id"])
+    display_result(project)
+    
+    # Add tasks to the project
+    display_header("Adding Tasks to Project")
+    add_task1 = ProjectAPI.add_task_to_project(project["id"], task1["id"])
+    display_result(add_task1)
+    
+    add_task3 = ProjectAPI.add_task_to_project(project["id"], task3["id"])
+    display_result(add_task3)
+    
+    # Get project tasks
+    display_header(f"Tasks in Project: {project['name']}")
+    project_tasks = ProjectAPI.get_project_tasks(project["id"])
+    for task in project_tasks:
+        display_result(task)
+    
+    # Get user projects
+    display_header(f"Projects for {user1['name']}")
+    user_projects = ProjectAPI.get_user_projects(user1["id"])
+    for proj in user_projects:
+        display_result(proj)
 
 if __name__ == "__main__":
     main()
