@@ -24,3 +24,7 @@ output_relevant_files.json
 package-lock.json
 
 agent_workspace/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
