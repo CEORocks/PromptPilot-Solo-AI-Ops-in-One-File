@@ -22,13 +22,13 @@ atomic-composable-architecture/
 
 ## Explanation
 
-- **Atom**: Bottom-level reusable components that must remain general-purpose and independent. Atoms can only depend on other atoms, not molecules or organisms.
+- **Atom**: Bottom-level reusable components that must remain general-purpose and independent. In a unrestricted codebase design: Atoms can only depend on other atoms. In a stricter version: Atoms can only depend on other atoms, not molecules or organisms.
 - **Molecule**: Compose atoms to build concrete functionality. Molecules can depend on multiple atoms, enabling reuse and rapid feature composition.
 - **Organism**: The highest level, combining molecules to create user-facing APIs or interfaces.
 
 ## Benefits
 
-- Maximizes code reuse and composability; reduces duplication and accelerates feature development.
+- Maximizes code reuse and composability; **reduces duplication** and accelerates feature development.
 - Clear hierarchical structure makes it easy to reason about what building blocks are available.
 - Promotes small, focused, and easily understandable code units.
 
