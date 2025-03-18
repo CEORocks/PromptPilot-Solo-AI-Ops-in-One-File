@@ -92,3 +92,43 @@ def display_token_usage(input_tokens: int, output_tokens: int) -> None:
     table.add_row("Total Tokens", str(input_tokens + output_tokens))
     
     console.print(table)
+
+def log_info(component: str, message: str) -> None:
+    """
+    Log an informational message.
+    
+    Args:
+        component: The component generating the log
+        message: The message to log
+    """
+    console.print(f"[bold blue][INFO][/bold blue] [{component}] {message}")
+
+def log_error(component: str, message: str) -> None:
+    """
+    Log an error message.
+    
+    Args:
+        component: The component generating the log
+        message: The message to log
+    """
+    console.print(f"[bold red][ERROR][/bold red] [{component}] {message}")
+    
+def log_warning(component: str, message: str) -> None:
+    """
+    Log a warning message.
+    
+    Args:
+        component: The component generating the log
+        message: The message to log
+    """
+    console.print(f"[bold yellow][WARNING][/bold yellow] [{component}] {message}")
+    
+def log_success(component: str, message: str) -> None:
+    """
+    Log a success message.
+    
+    Args:
+        component: The component generating the log
+        message: The message to log
+    """
+    console.print(f"[bold green][SUCCESS][/bold green] [{component}] {message}")
