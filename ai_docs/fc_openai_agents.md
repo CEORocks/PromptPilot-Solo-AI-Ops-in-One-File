@@ -470,3 +470,68 @@ When an LLM is called, it can only see data from the conversation history. There
 2. Add it to the `input` when calling `Runner.run`
 3. Expose it via function tools for on-demand access
 4. Use retrieval or web search tools to fetch relevant contextual data
+
+## Model Context Protocol (MCP)
+
+The [Model Context Protocol](https://modelcontextprotocol.io/introduction) (aka MCP) is a way to provide tools and context to the LLM. MCP provides a standardized way to connect AI models to different data sources and tools.
+
+### MCP Servers
+
+The Agents SDK supports two types of MCP servers:
+
+1. **stdio servers** run as a subprocess of your application (locally)
+2. **HTTP over SSE servers** run remotely (connect via URL)
+
+You can use `MCPServerStdio` and `MCPServerSse` classes to connect to these servers:
+
+```python
+from agents.mcp.server import MCPServerStdio, MCPServerSse
+
+# Example using the filesystem MCP server
+async with MCPServerStdio(
+    params={
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", samples_dir],
+    }
+) as server:
+    tools = await server.list_tools()
+```
+
+### Using MCP Servers with Agents
+
+MCP servers can be added directly to Agents:
+
+```python
+agent = Agent(
+    name="Assistant",
+    instructions="Use the tools to achieve the task",
+    mcp_servers=[mcp_server_1, mcp_server_2]
+)
+```
+
+When the Agent runs, it will automatically call `list_tools()` on all MCP servers, making the LLM aware of all available tools. When the LLM calls a tool from an MCP server, the SDK handles calling `call_tool()` on that server.
+
+### Caching Tool Lists
+
+For better performance, especially with remote servers, you can cache the list of tools:
+
+```python
+mcp_server = MCPServerSse(
+    url="https://example.com/mcp",
+    cache_tools_list=True  # Enable caching
+)
+
+# Later, if needed, clear the cache
+mcp_server.invalidate_tools_cache()
+```
+
+Only use caching when you're certain the tool list will not change during execution.
+
+### Tracing MCP Operations
+
+The Agents SDK's tracing system automatically captures MCP operations, including:
+
+1. Calls to MCP servers to list tools
+2. MCP-related information on function calls
+
+This makes it easier to debug and analyze your agent's interactions with MCP tools.
