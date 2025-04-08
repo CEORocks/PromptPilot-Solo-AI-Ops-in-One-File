@@ -6,7 +6,6 @@
 #   "openai-agents",
 #   "pydantic",
 #   "typing_extensions",
-#   "@modelcontextprotocol/server-filesystem"
 # ]
 # ///
 
@@ -46,7 +45,7 @@ Examples:
 
     # Run agent with streaming output capabilities
     uv run sfa_openai_agent_sdk_v1.py --streaming
-    
+
     # Run agent with Model Context Protocol (MCP) server
     # Note: Requires npm for the MCP filesystem server
     uv run sfa_openai_agent_sdk_v1.py --mcp
@@ -245,7 +244,7 @@ def create_guardrail_agent():
         final_output = result.final_output_as(HomeworkOutput)
         return GuardrailFunctionOutput(
             output_info=final_output,
-            tripwire_triggered=final_output.is_homework  # Trigger if IS homework
+            tripwire_triggered=final_output.is_homework,  # Trigger if IS homework
         )
 
     tutor_agent = Agent(
@@ -323,6 +322,8 @@ def run_agent_with_structured_output():
     print(f"Price: ${output.price}")
     print(f"Reason: {output.reason}\n")
 
+    print(result.final_output)
+
 
 @function_tool
 def log_conversation(ctx: RunContextWrapper[Dict[str, Any]], message: str) -> str:
@@ -364,7 +365,8 @@ async def run_tracing_example():
         name="Tracing Example Agent", instructions="You provide helpful responses."
     )
 
-    async with trace("Multi-turn conversation"):
+    # Using trace as a regular context manager (not async)
+    with trace("Multi-turn conversation"):
         first_result = await Runner.run(agent, "Tell me a short story about a robot.")
         print(f"First Response:\n{first_result.final_output}\n")
 
@@ -396,48 +398,50 @@ def run_streaming_example():
 
 async def run_agent_with_mcp():
     """Run an agent with Model Context Protocol (MCP) server for tools."""
-    # Create a temporary directory for the filesystem MCP server
-    with tempfile.TemporaryDirectory() as temp_dir:
-        # Create a sample file in the temporary directory
-        sample_file_path = os.path.join(temp_dir, "sample.txt")
-        with open(sample_file_path, "w") as f:
-            f.write("This is a sample file created by the OpenAI Agent SDK MCP example.")
-        
-        print(f"Created temporary directory at {temp_dir} with a sample file")
-        
-        # Start an MCP filesystem server pointing to our temporary directory
-        async with MCPServerStdio(
-            params={
-                "command": "npx",
-                "args": ["-y", "@modelcontextprotocol/server-filesystem", temp_dir],
-            }
-        ) as server:
-            # List available tools from the MCP server
-            tools = await server.list_tools()
-            print(f"MCP Server initialized with {len(tools)} tools")
-            
-            # Create an agent with access to the MCP server
-            agent = Agent(
-                name="MCP File Explorer",
-                instructions="You help users navigate and read files in a directory. Use the provided MCP tools to explore the filesystem and read files when requested.",
-                mcp_servers=[server],
-            )
-            
-            # Run the agent
-            result = await Runner.run(
-                agent, 
-                "What files are available in the current directory? Please read the contents of any text files you find."
-            )
-            
-            print(f"MCP Agent Result:\n{result.final_output}\n")
-            
-            # Second query using the same agent
-            result2 = await Runner.run(
-                agent,
-                "Could you tell me the character count in the sample file?"  
-            )
-            
-            print(f"MCP Agent Follow-up Result:\n{result2.final_output}\n")
+    # Use the current working directory for the filesystem MCP server
+    cwd = os.getcwd()
+    print(f"Using current working directory: {cwd}")
+
+    # Get a list of files in the current directory for reference
+    files = os.listdir(cwd)
+    print(
+        f"Files in current directory: {', '.join(files[:5])}{'...' if len(files) > 5 else ''}"
+    )
+
+    # Start an MCP filesystem server pointing to the current directory
+    async with MCPServerStdio(
+        params={
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-filesystem", cwd],
+        }
+    ) as server:
+        # List available tools from the MCP server
+        tools = await server.list_tools()
+        print(f"MCP Server initialized with {len(tools)} tools")
+        print(f"Tools: {[tool.name for tool in tools]}")
+
+        # Create an agent with access to the MCP server
+        agent = Agent(
+            name="MCP File Explorer",
+            instructions="You help users explore and analyze files in this repository. Use the provided MCP tools to navigate the filesystem, read files, and provide information about their contents.",
+            mcp_servers=[server],
+            model="gpt-4o",
+        )
+
+        # Run the agent
+        result = await Runner.run(
+            agent,
+            "What directories are in this project? Please list the key Python files in the root directory.",
+        )
+
+        print(f"MCP Agent Result:\n{result.final_output}\n")
+
+        # Second query using the same agent
+        result2 = await Runner.run(
+            agent, "Can you analyze the structure of one of the sfa_* files?"
+        )
+
+        print(f"MCP Agent Follow-up Result:\n{result2.final_output}\n")
 
 
 def main():
@@ -467,9 +471,7 @@ def main():
     parser.add_argument(
         "--streaming", action="store_true", help="Run agent with streaming"
     )
-    parser.add_argument(
-        "--mcp", action="store_true", help="Run agent with MCP server"
-    )
+    parser.add_argument("--mcp", action="store_true", help="Run agent with MCP server")
 
     args = parser.parse_args()
 
@@ -508,7 +510,7 @@ def main():
 
     if args.all or args.streaming:
         run_streaming_example()
-        
+
     if args.all or args.mcp:
         asyncio.run(run_agent_with_mcp())
 
