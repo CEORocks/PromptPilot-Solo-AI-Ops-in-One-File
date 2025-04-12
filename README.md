@@ -35,7 +35,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ### Step 2 – Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/promptpilot.git
+git clone https://github.com/CEORocks/promptpilot.git
 cd promptpilot
 ```
 
