@@ -1,4 +1,3 @@
-```markdown
 # PromptPilot: Solo AI Ops in One File
 
 PromptPilot is your launchpad for building and running lean, purpose-driven AI scripts – each packed into a single Python file. Designed to be fast, focused, and framework-free, these micro-agents are engineered for speed and clarity.
@@ -154,5 +153,5 @@ Test, tweak, and build your own fleet of file-sized AI utilities.
 > “AI doesn’t need more layers. It needs more clarity.”
 
 Happy Piloting 🚀
-```
+
 
